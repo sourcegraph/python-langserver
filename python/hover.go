@@ -9,10 +9,11 @@ import (
 )
 
 func (h *Handler) handleHover(req *jsonrpc2.Request, params lsp.TextDocumentPositionParams) (*lsp.Hover, error) {
-	b, err := cmdOutput(nil, exec.Command("langserver-python.py", "hover",
+	b, err := cmdOutput(nil, exec.Command("langserver-python.py",
 		"--path", h.filePath(params.TextDocument.URI),
 		"--line", strconv.Itoa(params.Position.Line+1),
 		"--column", strconv.Itoa(params.Position.Character),
+		"hover",
 	))
 	if err != nil {
 		return nil, err

@@ -81,9 +81,9 @@ func (h *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		h.reset(&params)
 		return lsp.InitializeResult{
 			Capabilities: lsp.ServerCapabilities{
-				HoverProvider: true,
-				// DefinitionProvider: true,
-				// ReferencesProvider: true,
+				HoverProvider:      true,
+				DefinitionProvider: true,
+				ReferencesProvider: true,
 				// WorkspaceSymbolProvider: true,
 			},
 		}, nil
@@ -99,6 +99,20 @@ func (h *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 			return
 		}
 		return h.handleHover(req, params)
+
+	case "textDocument/definition":
+		var params lsp.TextDocumentPositionParams
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			return
+		}
+		return h.handleDefinition(req, params)
+
+	case "textDocument/references":
+		var params lsp.ReferenceParams
+		if err = json.Unmarshal(*req.Params, &params); err != nil {
+			break
+		}
+		return h.handleReferences(req, params)
 	}
 
 	return nil, &jsonrpc2.Error{Code: jsonrpc2.CodeMethodNotFound, Message: fmt.Sprintf("method not supported: %s", req.Method)}
