@@ -78,6 +78,9 @@ func (h *Handler) Handle(ctx context.Context, conn *jsonrpc2.Conn, req *jsonrpc2
 		if params.RootPath == "" {
 			params.RootPath = "/"
 		}
+		if !strings.HasSuffix(params.RootPath, "/") {
+			params.RootPath = params.RootPath + "/"
+		}
 		h.reset(&params)
 		return lsp.InitializeResult{
 			Capabilities: lsp.ServerCapabilities{
