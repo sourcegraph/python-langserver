@@ -1,0 +1,113 @@
+{
+	"comment": "",
+	"ignore": "test",
+	"package": [
+		{
+			"checksumSHA1": "4QnLdmB1kG3N+KlDd1N+G9TWAGQ=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/beorn7/perks/quantile",
+			"path": "github.com/beorn7/perks/quantile",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "4BxT1r53xaajIzWop5H+lm9eVwM=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/golang/protobuf/proto",
+			"path": "github.com/golang/protobuf/proto",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "Q2vw4HZBbnU8BLFt8VrzStwqSJg=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/matttproud/golang_protobuf_extensions/pbutil",
+			"path": "github.com/matttproud/golang_protobuf_extensions/pbutil",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "dOZUSF5us7fCNH1a82DkyzCFsGA=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/neelance/depprof",
+			"path": "github.com/neelance/depprof",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "wQEloMPTblRcywDZnt3WJYjyiv8=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/prometheus/client_golang/prometheus",
+			"path": "github.com/prometheus/client_golang/prometheus",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "DvwvOlPNAgRntBzt3b3OSRMS2N4=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/prometheus/client_model/go",
+			"path": "github.com/prometheus/client_model/go",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "9qo/tkVxlpKy76lQyCnAp2E9tOo=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/prometheus/common/expfmt",
+			"path": "github.com/prometheus/common/expfmt",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "GWlM3d2vPYyNATtTFgftS10/A9w=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
+			"path": "github.com/prometheus/common/internal/bitbucket.org/ww/goautoneg",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "LlQbNiuu97L/wzAOwg+NDHT1Gys=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/prometheus/common/model",
+			"path": "github.com/prometheus/common/model",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "XuMt7dxcJIKmAAwLXKGPhoqDcE4=",
+			"origin": "sourcegraph.com/sourcegraph/sourcegraph/vendor/github.com/prometheus/procfs",
+			"path": "github.com/prometheus/procfs",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "tvMPITtCUH11dvjiiS4pHyo/xFA=",
+			"path": "github.com/sourcegraph/langserver/client",
+			"revision": "9c5e9c765bdcd6788cfbbf3f94b25eadae5872cc",
+			"revisionTime": "2016-09-14T00:17:34Z"
+		},
+		{
+			"checksumSHA1": "vV9nNz1fNdNLiwONs2vOcN7WOBY=",
+			"path": "github.com/sourcegraph/langserver/testharness",
+			"revision": "9c5e9c765bdcd6788cfbbf3f94b25eadae5872cc",
+			"revisionTime": "2016-09-14T00:17:34Z"
+		},
+		{
+			"checksumSHA1": "icCX7/qhZL7uFlN+HkGXTow0sTM=",
+			"path": "sourcegraph.com/sourcegraph/sourcegraph/pkg/cmdutil",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "XOAUWW/qTtObmkdmaf+6mLKadQ8=",
+			"path": "sourcegraph.com/sourcegraph/sourcegraph/pkg/debugserver",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "A5sBNoL3gQ6SU02JWyFMIoLUTbc=",
+			"path": "sourcegraph.com/sourcegraph/sourcegraph/pkg/jsonrpc2",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		},
+		{
+			"checksumSHA1": "1Umq1sc1eOknQXJlO/AW63O0hl0=",
+			"path": "sourcegraph.com/sourcegraph/sourcegraph/pkg/lsp",
+			"revision": "4179e3bb4df5202727aba90739308e6ebe0a8660",
+			"revisionTime": "2016-09-13T19:17:50Z"
+		}
+	],
+	"rootPath": "github.com/sourcegraph/langserver-python"
+}
