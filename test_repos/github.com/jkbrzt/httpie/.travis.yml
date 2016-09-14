@@ -1,0 +1,94 @@
+# https://travis-ci.org/jkbrzt/httpie
+sudo: false
+
+language: python
+os:
+  - linux
+
+env:
+  global:
+    - NEWEST_PYTHON=3.5
+
+python:
+  - 2.6
+  - 2.7
+  - pypy
+  - 3.4
+  - 3.5
+# Currently fails because of a Flask issue
+#  - pypy3
+
+matrix:
+
+  include:
+
+    # Manually defined OS X builds
+    # https://docs.travis-ci.com/user/multi-os/#Python-example-(unsupported-languages)
+
+    # Stock OSX Python
+    - os: osx
+      language: generic
+      env:
+        - TOXENV=py27
+
+    # Latest Python 2.x from Homebrew
+    - os: osx
+      language: generic
+      env:
+        - TOXENV=py27
+        - BREW_INSTALL=python
+
+    # Latest Python 3.x from Homebrew
+    - os: osx
+      language: generic
+      env:
+        - TOXENV=py35
+        - BREW_INSTALL=python3
+
+    # Python Codestyle
+    - os: linux
+      python: 3.5
+      env: CODESTYLE=true
+
+install:
+  - |
+    if [[ $TRAVIS_OS_NAME == 'osx' ]]; then
+      if [[ -n "$BREW_INSTALL" ]]; then
+        brew update
+        brew install "$BREW_INSTALL"
+      fi
+      sudo pip install tox
+    fi
+    if [[ $CODESTYLE ]]; then
+      pip install pycodestyle
+    fi
+
+script:
+  - |
+    if [[ $TRAVIS_OS_NAME == 'linux' ]]; then
+      if [[ $CODESTYLE ]]; then
+        # 241 - multiple spaces after ‘,’
+        # 501 - line too long
+        pycodestyle --ignore=E241,E501
+      else
+        make
+      fi
+    else
+      PATH="/usr/local/bin:$PATH" tox -e "$TOXENV"
+    fi
+
+after_success:
+  - |
+    if [[ $TRAVIS_PYTHON_VERSION == $NEWEST_PYTHON && $TRAVIS_OS_NAME == 'linux' ]]; then
+      pip install python-coveralls && coveralls
+    fi
+
+notifications:
+
+  webhooks:
+    urls:
+      # https://gitter.im/jkbrzt/httpie
+      - https://webhooks.gitter.im/e/c42fcd359a110d02830b
+    on_success: always  # options: [always|never|change] default: always
+    on_failure: always  # options: [always|never|change] default: always
+    on_start: always     # options: [always|never|change] default: always
