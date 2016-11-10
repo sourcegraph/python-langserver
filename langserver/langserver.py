@@ -2,6 +2,7 @@ import sys
 import json
 import jedi
 import argparse
+import socket
 from abc import ABC, abstractmethod
 
 def log(*args, **kwargs):
@@ -34,36 +35,40 @@ class StdIOReadWriter(ReadWriter):
         sys.stdout.write(out)
         sys.stdout.flush()
 
-class SocketReadWriter(ReadWriter):
-    def __init__(self, socket):
-        self.socket = socket
+class TCPReadWriter(ReadWriter):
+    def __init__(self, conn):
+        self.conn = conn
         self.buffer = ""
 
     def readline(self, size=None):
         buffering = True
         while buffering:
             if "\n" in self.buffer:
-                line, self.buffer = buffer.split("\n", 1)
+                line, self.buffer = self.buffer.split("\n", 1)
+                line += "\n"
                 if size:
                     line, self.buffer = line[:size], self.buffer + line[size:]
                 return line
             else:
-                next = socket.recv(4096)
+                next = self.conn.recv(4096)
                 if not next:
                     buffering = False
                 else:
-                    self.buffer += more
+                    self.buffer += next.decode("utf-8")
 
     def read(self, size):
         if len(self.buffer) >= size:
             out, self.buffer = self.buffer[:size], self.buffer[size:]
         recv_size = size - len(self.buffer)
-        next = socket.recv(recv_size)
+        next = self.conn.recv(recv_size).decode("utf-8")
         out, self.buffer = self.buffer + next, self.buffer
         return out
 
+    def write(self, out):
+        self.conn.send(out.encode())
+
 class JSONRPC2Server:
-    def __init__(self, conn=None):
+    def __init__(self, conn):
         self.conn = conn
 
     def handle(self, id, request):
@@ -71,11 +76,13 @@ class JSONRPC2Server:
 
     def _read_header_content_length(self, line):
         if len(line) < 2 or line[-2:] != "\r\n":
+            print("LINE: ", line)
             raise JSONRPC2Error("Line endings must be \\r\\n")
         if line.startswith("Content-Length: "):
             _, value = line.split("Content-Length: ")
             value = value.strip()
             try:
+                print("LENGTH VALUE: ", value)
                 return int(value)
             except ValueError:
                 raise JSONRPC2Error("Invalid Content-Length header: {}".format(value))
@@ -93,7 +100,7 @@ class JSONRPC2Server:
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body))
         self.conn.write(response)
-        log("RESPONSE: ", response)
+        log("RESPONSE: ", id, response)
 
     def serve(self):
         while True:
@@ -234,16 +241,31 @@ class LangServer(JSONRPC2Server):
 def main():
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--mode", default="stdio", help="communication (stdio|tcp)")
+    parser.add_argument("--addr", default=4389, help="server listen (tcp)", type=int)
 
     args = parser.parse_args()
     rw = None
     if args.mode == "stdio":
         log("Reading on stdin, writing on stdout")
         rw = StdIOReadWriter()
+        server = LangServer(conn=rw)
+        server.serve()
+
     elif args.mode == "tcp":
-        log("Accepting TCP connections on {}")
-    server = LangServer(conn=rw)
-    server.serve()
+        s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        config = ("localhost", args.addr)
+        log("Accepting TCP connections on {}:{}".format(config[0], config[1]))
+        s.bind(config)
+        s.listen(1) # TODO(renfred): accept more connections?
+        conn, addr = s.accept()
+
+        rw = TCPReadWriter(conn)
+        server = LangServer(conn=rw)
+        try:
+            server.serve()
+        finally:
+            conn.close()
+
 
 if __name__ == "__main__":
     main()

@@ -41,11 +41,12 @@ function startLangServerTCP(addr: number, documentSelector: string | string[]): 
 export function activate(context: ExtensionContext) {
 	context.subscriptions.push(startLangServer("langserver-sample", ["plaintext"]));
 	context.subscriptions.push(startLangServer("langserver-go", ["go"]));
-	context.subscriptions.push(startLangServer("langserver-python", ["python"]));
+	// context.subscriptions.push(startLangServer("langserver-python", ["python"]));
 	context.subscriptions.push(startLangServer("langserver-ctags", ["php"]));
 	// When developing JS/TS, set {"typescript.tsdk": "/dev/null"} in your user settings in the
 	// new VSCode window opened via `npm run vscode`.
 	context.subscriptions.push(startLangServerTCP(2089, ["typescript", "typescriptreact", "javascript", "javascriptreact"]));
 	context.subscriptions.push(startLangServerTCP(2088, ["java"]));
+	context.subscriptions.push(startLangServerTCP(2087, ["python"]));
 }
 
