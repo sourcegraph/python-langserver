@@ -2,7 +2,8 @@ import sys
 import json
 import jedi
 import argparse
-from abc import ABC, abstractmethod
+import socket
+import socketserver
 
 def log(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -10,60 +11,40 @@ def log(*args, **kwargs):
 class JSONRPC2Error(Exception):
     pass
 
-class ReadWriter(ABC):
-    @abstractmethod
-    def readline(self, size):
-        pass
+class ReadWriter:
+    def __init__(self, reader, writer):
+        self.reader = reader
+        self.writer = writer
 
-    @abstractmethod
-    def read(self, size):
-        pass
-
-    @abstractmethod
-    def write(self, size):
-        pass
-
-class StdIOReadWriter(ReadWriter):
     def readline(self, *args):
-        return sys.stdin.readline(*args)
+        return self.reader.readline(*args)
 
     def read(self, *args):
-        return sys.stdin.read(*args)
+        return self.reader.read(*args)
 
     def write(self, out):
-        sys.stdout.write(out)
-        sys.stdout.flush()
+        self.writer.write(out)
+        self.writer.flush()
 
-class SocketReadWriter(ReadWriter):
-    def __init__(self, socket):
-        self.socket = socket
-        self.buffer = ""
+class TCPReadWriter(ReadWriter):
+    def readline(self, *args):
+        data = self.reader.readline(*args)
+        return data.decode("utf-8")
 
-    def readline(self, size=None):
-        buffering = True
-        while buffering:
-            if "\n" in self.buffer:
-                line, self.buffer = buffer.split("\n", 1)
-                if size:
-                    line, self.buffer = line[:size], self.buffer + line[size:]
-                return line
-            else:
-                next = socket.recv(4096)
-                if not next:
-                    buffering = False
-                else:
-                    self.buffer += more
+    def read(self, *args):
+        return self.reader.read(*args).decode("utf-8")
 
-    def read(self, size):
-        if len(self.buffer) >= size:
-            out, self.buffer = self.buffer[:size], self.buffer[size:]
-        recv_size = size - len(self.buffer)
-        next = socket.recv(recv_size)
-        out, self.buffer = self.buffer + next, self.buffer
-        return out
+    def write(self, out):
+        self.writer.write(out.encode())
+        self.writer.flush()
+
+class LangserverTCPTransport(socketserver.StreamRequestHandler):
+    def handle(self):
+        s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
+        s.serve()
 
 class JSONRPC2Server:
-    def __init__(self, conn=None):
+    def __init__(self, conn: ReadWriter):
         self.conn = conn
 
     def handle(self, id, request):
@@ -93,7 +74,7 @@ class JSONRPC2Server:
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body))
         self.conn.write(response)
-        log("RESPONSE: ", response)
+        log("RESPONSE: ", id, response)
 
     def serve(self):
         while True:
@@ -234,16 +215,19 @@ class LangServer(JSONRPC2Server):
 def main():
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--mode", default="stdio", help="communication (stdio|tcp)")
+    parser.add_argument("--addr", default=4389, help="server listen (tcp)", type=int)
 
     args = parser.parse_args()
     rw = None
     if args.mode == "stdio":
         log("Reading on stdin, writing on stdout")
-        rw = StdIOReadWriter()
+        s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
+        s.serve()
     elif args.mode == "tcp":
-        log("Accepting TCP connections on {}")
-    server = LangServer(conn=rw)
-    server.serve()
+        host, addr = "localhost", args.addr
+        log("Accepting TCP connections on {}:{}".format(host, addr))
+        s = socketserver.TCPServer((host, addr), LangserverTCPTransport)
+        s.serve_forever()
 
 if __name__ == "__main__":
     main()
