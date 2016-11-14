@@ -80,7 +80,10 @@ class JSONRPC2Server:
         while True:
             line = self.conn.readline()
             length = self._read_header_content_length(line)
-            body = self.conn.read(length+2) # TODO(renfred): why the off-by-two?
+            # Keep reading headers until we find the sentinel line for the JSON request.
+            while line != "\r\n":
+                line = self.conn.readline()
+            body = self.conn.read(length)
             request = json.loads(body)
             self.handle(id, request)
 
