@@ -226,8 +226,12 @@ def main():
     elif args.mode == "tcp":
         host, addr = "localhost", args.addr
         log("Accepting TCP connections on {}:{}".format(host, addr))
+        socketserver.TCPServer.allow_reuse_address = True
         s = socketserver.TCPServer((host, addr), LangserverTCPTransport)
-        s.serve_forever()
+        try:
+            s.serve_forever()
+        finally:
+            s.shutdown()
 
 if __name__ == "__main__":
     main()
