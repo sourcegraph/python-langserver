@@ -1,9 +1,12 @@
+import base64
 import sys
 import json
 import jedi
 import argparse
+import random
 import socket
 import socketserver
+from abc import ABC, abstractmethod
 
 def log(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
@@ -38,13 +41,35 @@ class TCPReadWriter(ReadWriter):
         self.writer.write(out.encode())
         self.writer.flush()
 
+class FileException(Exception):
+    pass
+
+class FileSystem(ABC):
+    @abstractmethod
+    def open(path):
+        pass
+
+class LocalFileSystem(FileSystem):
+    def open(self, path):
+        return open(path).read()
+
+class RemoteFileSystem(FileSystem):
+    def __init__(self, server):
+        self.server = server
+
+    def open(self, path):
+        resp = self.server.send_request("fs/readFile", path)
+        if resp.get("error") is not None:
+            raise FileException(resp["error"])
+        return base64.b64decode(resp["result"]).decode("utf-8")
+
 class LangserverTCPTransport(socketserver.StreamRequestHandler):
     def handle(self):
         s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
         s.serve()
 
 class JSONRPC2Server:
-    def __init__(self, conn: ReadWriter):
+    def __init__(self, conn=None):
         self.conn = conn
 
     def handle(self, id, request):
@@ -61,6 +86,16 @@ class JSONRPC2Server:
             except ValueError:
                 raise JSONRPC2Error("Invalid Content-Length header: {}".format(value))
 
+    """Read the next JSON RPC message sent over the current connection."""
+    def read_message(self):
+        line = self.conn.readline()
+        length = self._read_header_content_length(line)
+        # Keep reading headers until we find the sentinel line for the JSON request.
+        while line != "\r\n":
+            line = self.conn.readline()
+        body = self.conn.read(length)
+        return json.loads(body)
+
     def write_response(self, id, result):
         body = {
             "jsonrpc": "2.0",
@@ -76,18 +111,34 @@ class JSONRPC2Server:
         self.conn.write(response)
         log("RESPONSE: ", id, response)
 
+    def send_request(self, method: str, params):
+        body = {
+            "jsonrpc": "2.0",
+            "id": random.randint(0, 2**16),
+            "method": method,
+            "params": params,
+        }
+        body = json.dumps(body, separators=(",", ":"))
+        content_length = len(body)
+        request = (
+            "Content-Length: {}\r\n"
+            "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
+            "{}".format(content_length, body))
+        log("SENDING REQUEST: ", request)
+        self.conn.write(request)
+        return self.read_message()
+
     def serve(self):
         while True:
-            line = self.conn.readline()
-            length = self._read_header_content_length(line)
-            # Keep reading headers until we find the sentinel line for the JSON request.
-            while line != "\r\n":
-                line = self.conn.readline()
-            body = self.conn.read(length)
-            request = json.loads(body)
+            request = self.read_message()
             self.handle(id, request)
 
 class LangServer(JSONRPC2Server):
+    # TODO figure out how to set self.fs instead of using this method.
+    def get_fs(self):
+        # return LocalFileSystem() TODO switch to local fs via CLI flag
+        return RemoteFileSystem(self)
+
     def handle(self, id, request):
         log("REQUEST: ", id, request)
         resp = ""
@@ -120,7 +171,7 @@ class LangServer(JSONRPC2Server):
         params = request["params"]
         pos = params["position"]
         path = self.path_from_uri(params["textDocument"]["uri"])
-        source = open(path).read()
+        source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = jedi.api.Script(path=path, source=source, line=pos["line"]+1,
@@ -152,7 +203,7 @@ class LangServer(JSONRPC2Server):
         params = request["params"]
         pos = params["position"]
         path = self.path_from_uri(params["textDocument"]["uri"])
-        source = open(path).read()
+        source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = jedi.api.Script(path=path, source=source, line=pos["line"]+1,
@@ -186,7 +237,7 @@ class LangServer(JSONRPC2Server):
         params = request["params"]
         pos = params["position"]
         path = self.path_from_uri(params["textDocument"]["uri"])
-        source = open(path).read()
+        source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = jedi.api.Script(path=path, source=source, line=pos["line"]+1,
@@ -218,10 +269,13 @@ class LangServer(JSONRPC2Server):
 def main():
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--mode", default="stdio", help="communication (stdio|tcp)")
+    # TODO use this
+    parser.add_argument("--fs", default="remote", help="file system (local|remote)")
     parser.add_argument("--addr", default=4389, help="server listen (tcp)", type=int)
 
     args = parser.parse_args()
     rw = None
+
     if args.mode == "stdio":
         log("Reading on stdin, writing on stdout")
         s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
