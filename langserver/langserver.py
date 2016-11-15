@@ -281,7 +281,7 @@ def main():
         s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
         s.serve()
     elif args.mode == "tcp":
-        host, addr = "localhost", args.addr
+        host, addr = "0.0.0.0", args.addr
         log("Accepting TCP connections on {}:{}".format(host, addr))
         socketserver.TCPServer.allow_reuse_address = True
         s = socketserver.TCPServer((host, addr), LangserverTCPTransport)
