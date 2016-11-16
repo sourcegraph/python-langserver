@@ -64,6 +64,9 @@ class RemoteFileSystem(FileSystem):
             raise FileException(resp["error"])
         return base64.b64decode(resp["result"]).decode("utf-8")
 
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    pass
+
 class LangserverTCPTransport(socketserver.StreamRequestHandler):
     def handle(self):
         s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
@@ -289,8 +292,8 @@ def main():
     elif args.mode == "tcp":
         host, addr = "0.0.0.0", args.addr
         log("Accepting TCP connections on {}:{}".format(host, addr))
-        socketserver.TCPServer.allow_reuse_address = True
-        s = socketserver.TCPServer((host, addr), LangserverTCPTransport)
+        ThreadingTCPServer.allow_reuse_address = True
+        s = ThreadingTCPServer((host, addr), LangserverTCPTransport)
         try:
             s.serve_forever()
         finally:
