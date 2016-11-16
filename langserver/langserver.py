@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 
 def log(*args, **kwargs):
     print(*args, file=sys.stderr, **kwargs)
+    sys.stderr.flush()
 
 class JSONRPC2Error(Exception):
     pass
@@ -109,7 +110,7 @@ class JSONRPC2Server:
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body))
         self.conn.write(response)
-        log("RESPONSE: ", id, response)
+        log("RESPONSE: ", response)
 
     def send_request(self, method: str, params):
         body = {
@@ -140,7 +141,7 @@ class LangServer(JSONRPC2Server):
         return RemoteFileSystem(self)
 
     def handle(self, id, request):
-        log("REQUEST: ", id, request)
+        log("REQUEST: ", request)
         resp = ""
 
         if request["method"] == "initialize":
