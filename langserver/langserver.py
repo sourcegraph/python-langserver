@@ -90,6 +90,8 @@ class JSONRPC2Server:
     """Read the next JSON RPC message sent over the current connection."""
     def read_message(self):
         line = self.conn.readline()
+        if line == "":
+            raise EOFError()
         length = self._read_header_content_length(line)
         # Keep reading headers until we find the sentinel line for the JSON request.
         while line != "\r\n":
@@ -131,7 +133,10 @@ class JSONRPC2Server:
 
     def serve(self):
         while True:
-            request = self.read_message()
+            try:
+                request = self.read_message()
+            except EOFError:
+                break
             self.handle(id, request)
 
 class LangServer(JSONRPC2Server):
