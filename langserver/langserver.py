@@ -150,7 +150,7 @@ class LangServer(JSONRPC2Server):
 
     def handle(self, id, request):
         log("REQUEST: ", request)
-        resp = ""
+        resp = None
 
         if request["method"] == "initialize":
             resp = {
@@ -168,8 +168,10 @@ class LangServer(JSONRPC2Server):
             resp = self.serve_definition(request)
         elif request["method"] == "textDocument/references":
             resp = self.serve_references(request)
+        elif request["method"] == "workspace/symbol":
+            resp = []
 
-        if resp:
+        if resp is not None:
             self.write_response(request["id"], resp)
 
     def path_from_uri(self, uri):
