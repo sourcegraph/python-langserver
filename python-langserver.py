@@ -3,5 +3,7 @@
 import sys
 import time
 import langserver.langserver
+from langserver.log import log
 
+log("Test")
 langserver.langserver.main()
