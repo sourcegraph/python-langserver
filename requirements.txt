@@ -1,1 +1,1 @@
-jedi==0.9.0
+-e git://github.com/sourcegraph/jedi.git@582460bcd33224d79952b0be24f8c492baa7f162#egg=jedi
