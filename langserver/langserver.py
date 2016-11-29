@@ -3,6 +3,8 @@ import jedi
 import argparse
 import socket
 import socketserver
+import traceback
+from os import path as filepath
 from abc import ABC, abstractmethod
 
 from langserver.fs import LocalFileSystem, RemoteFileSystem
@@ -10,8 +12,26 @@ from langserver.jsonrpc import JSONRPC2Server, ReadWriter, TCPReadWriter
 from langserver.log import log
 
 # TODO(renfred) non-global config.
+remote_fs = False
 
+class Module:
+    def __init__(self, name, path, is_package=False):
+        self.name = name
+        self.path = path
+        self.is_package = is_package
 
+    def __repr__(self):
+        return "PythonModule({}, {})".format(self.name, self.path)
+
+class DummyFile:
+    def __init__(self, contents):
+        self.contents = contents
+
+    def read(self):
+        return self.contents
+
+    def close(self):
+        pass
 
 class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
@@ -28,6 +48,49 @@ class LangServer(JSONRPC2Server):
             return RemoteFileSystem(self)
         else:
             return LocalFileSystem()
+
+    """Return a set of all python modules found within a given path."""
+    def workspace_modules(self, path="/"):
+        dir = self.get_fs().listdir(path)
+        modules = set()
+        for e in dir:
+            if e["dir"]:
+                subpath = filepath.join(path, e["name"])
+                subdir = self.get_fs().listdir(subpath)
+                if any([s["name"] == "__init__.py" for s in subdir]):
+                    modules.add(Module(e["name"], filepath.join(subpath, "__init__.py"), True))
+            else:
+                name, ext = filepath.splitext(e["name"])
+                if ext == ".py":
+                    if name == "__init__":
+                        name = filepath.basename(path)
+                        modules.add(Module(name, filepath.join(path, e["name"]), True))
+                    else:
+                        modules.add(Module(name, filepath.join(path, e["name"])))
+        return modules
+
+    """Return an initialized Jedi API Script object."""
+    def new_script(self, *args, **kwargs):
+        path = kwargs.get("path")
+
+        """A swap-in replacement for Jedi's find module function that uses the
+        remote fs to resolve module imports."""
+        def find_module_remote(string, dir=None):
+            if type(dir) is list: # TODO(renfred): handle list input for paths.
+                dir = dir[0]
+            dir = dir or filepath.dirname(path)
+            modules = self.workspace_modules(dir)
+            for m in modules:
+                if m.name == string:
+                    c = self.get_fs().open(m.path)
+                    is_package = m.is_package
+                    module_file = DummyFile(c)
+                    module_path = filepath.dirname(m.path) if is_package else m.path
+                    return module_file, module_path, is_package
+            else:
+                raise ImportError('Module "{}" not found in {}', string, dir)
+        find_module = find_module_remote if remote_fs else None
+        return jedi.api.Script(*args, **kwargs, find_module=find_module)
 
     def handle(self, id, request):
         log("REQUEST: ", request)
@@ -66,7 +129,7 @@ class LangServer(JSONRPC2Server):
         source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
-        script = jedi.api.Script(path=path, source=source, line=pos["line"]+1,
+        script = self.new_script(path=path, source=source, line=pos["line"]+1,
                                  column=pos["character"])
 
         defs, error = [], None
@@ -98,7 +161,7 @@ class LangServer(JSONRPC2Server):
         source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
-        script = jedi.api.Script(path=path, source=source, line=pos["line"]+1,
+        script = self.new_script(path=path, source=source, line=pos["line"]+1,
                                  column=pos["character"])
 
         defs = script.goto_definitions()
@@ -132,7 +195,7 @@ class LangServer(JSONRPC2Server):
         source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
-        script = jedi.api.Script(path=path, source=source, line=pos["line"]+1,
+        script = self.new_script(path=path, source=source, line=pos["line"]+1,
                                  column=pos["character"])
 
         usages = script.usages()
