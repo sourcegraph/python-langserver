@@ -227,9 +227,14 @@ def main():
     # TODO use this
     parser.add_argument("--fs", default="remote", help="file system (local|remote)")
     parser.add_argument("--addr", default=4389, help="server listen (tcp)", type=int)
+    parser.add_argument("--remote", default=0, help="temp, enable remote fs",
+                        type=int) # TODO(renfred) remove
 
     args = parser.parse_args()
     rw = None
+
+    global remote_fs
+    remote_fs = bool(args.remote)
 
     if args.mode == "stdio":
         log("Reading on stdin, writing on stdout")
