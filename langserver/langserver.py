@@ -138,6 +138,7 @@ class LangServer(JSONRPC2Server):
         except Exception as e:
             # TODO return these errors using JSONRPC properly. Doing it this way
             # initially for debugging purposes.
+            log(traceback.format_exc())
             error = "ERROR {}: {}".format(type(e), e)
         d = defs[0] if len(defs) > 0 else None
 
