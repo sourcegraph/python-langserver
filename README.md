@@ -1,6 +1,6 @@
 # Python language server
 
-This is a language server for Python that adheres to the [Language Server Protocol (LSP)](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md). It uses Jedi [Jedi](https://github.com/davidhalter/jedi) to perform source code analysis.
+This is a language server for Python that adheres to the [Language Server Protocol (LSP)](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md). It uses [Jedi](https://github.com/davidhalter/jedi) to perform source code analysis.
 
 ## Getting started
 
