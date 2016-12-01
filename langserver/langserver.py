@@ -10,6 +10,7 @@ from abc import ABC, abstractmethod
 from langserver.fs import LocalFileSystem, RemoteFileSystem
 from langserver.jsonrpc import JSONRPC2Server, ReadWriter, TCPReadWriter
 from langserver.log import log
+from .symbols import SymbolEmitter
 
 # TODO(renfred) non-global config.
 remote_fs = False
@@ -42,6 +43,11 @@ class LangserverTCPTransport(socketserver.StreamRequestHandler):
         s.serve()
 
 class LangServer(JSONRPC2Server):
+    def __init__(self, conn=None):
+        super().__init__(conn=conn)
+        self.root_path = None
+        self.symbol_cache = None
+
     # TODO figure out how to set self.fs instead of using this method.
     def get_fs(self):
         if remote_fs:
@@ -50,24 +56,38 @@ class LangServer(JSONRPC2Server):
             return LocalFileSystem()
 
     """Return a set of all python modules found within a given path."""
-    def workspace_modules(self, path="/"):
+    def workspace_modules(self, path):
         dir = self.get_fs().listdir(path)
         modules = set()
         for e in dir:
-            if e["dir"]:
-                subpath = filepath.join(path, e["name"])
+            if e.is_dir:
+                subpath = filepath.join(path, e.name)
                 subdir = self.get_fs().listdir(subpath)
-                if any([s["name"] == "__init__.py" for s in subdir]):
-                    modules.add(Module(e["name"], filepath.join(subpath, "__init__.py"), True))
+                if any([s.name == "__init__.py" for s in subdir]):
+                    modules.add(Module(e.name, filepath.join(subpath, "__init__.py"), True))
             else:
-                name, ext = filepath.splitext(e["name"])
+                name, ext = filepath.splitext(e.name)
                 if ext == ".py":
                     if name == "__init__":
                         name = filepath.basename(path)
-                        modules.add(Module(name, filepath.join(path, e["name"]), True))
+                        modules.add(Module(name, filepath.join(path, e.name), True))
                     else:
-                        modules.add(Module(name, filepath.join(path, e["name"])))
+                        modules.add(Module(name, filepath.join(path, e.name)))
         return modules
+
+    def workspace_symbols(self):
+        if self.symbol_cache:
+            return self.symbol_cache
+        symbols = []
+        for root, dirs, files in self.get_fs().walk(self.root_path):
+            for f in files:
+                name, ext = filepath.splitext(f)
+                if ext == ".py":
+                    src = self.get_fs().open(f)
+                    s = SymbolEmitter(src, file=f)
+                    symbols += s.symbols()
+        self.symbol_cache = symbols
+        return symbols
 
     """Return an initialized Jedi API Script object."""
     def new_script(self, *args, **kwargs):
@@ -97,13 +117,14 @@ class LangServer(JSONRPC2Server):
         resp = None
 
         if request["method"] == "initialize":
+            params = request["params"]
+            self.root_path = params["rootPath"]
             resp = {
                 "capabilities": {
-                    # "textDocumentSync": 1,
                     "hoverProvider": True,
                     "definitionProvider": True,
                     "referencesProvider": True,
-                    # "workspaceSymbolProvider": True TODO
+                    "workspaceSymbolProvider": True
                 }
             }
         elif request["method"] == "textDocument/hover":
@@ -113,7 +134,7 @@ class LangServer(JSONRPC2Server):
         elif request["method"] == "textDocument/references":
             resp = self.serve_references(request)
         elif request["method"] == "workspace/symbol":
-            resp = []
+            resp = self.serve_symbols(request)
 
         if resp is not None:
             self.write_response(request["id"], resp)
@@ -221,6 +242,27 @@ class LangServer(JSONRPC2Server):
                 }
             })
         return refs
+
+    def serve_symbols(self, request):
+        symbols = self.workspace_symbols()
+        return [{
+            "name": s.name,
+            "kind": s.kind.value,
+            "containerName": s.container,
+            "location": {
+                "uri": "file://" + s.file,
+                "range": {
+                    "start": {
+                        "line": s.line-1,
+                        "character": s.col,
+                    },
+                    "end": {
+                        "line": s.line-1,
+                        "character": s.col,
+                    }
+                }
+            },
+        } for s in symbols]
 
 def main():
     parser = argparse.ArgumentParser(description="")
