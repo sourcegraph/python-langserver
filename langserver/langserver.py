@@ -42,6 +42,12 @@ class LangserverTCPTransport(socketserver.StreamRequestHandler):
         s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
         s.serve()
 
+def path_from_uri(uri):
+    if not uri.startswith("file://"):
+        return uri
+    _, path = uri.split("file://", 1)
+    return path
+
 class LangServer(JSONRPC2Server):
     def __init__(self, conn=None):
         super().__init__(conn=conn)
@@ -118,7 +124,7 @@ class LangServer(JSONRPC2Server):
 
         if request["method"] == "initialize":
             params = request["params"]
-            self.root_path = params["rootPath"]
+            self.root_path = path_from_uri(params["rootPath"])
             resp = {
                 "capabilities": {
                     "hoverProvider": True,
@@ -139,14 +145,10 @@ class LangServer(JSONRPC2Server):
         if resp is not None:
             self.write_response(request["id"], resp)
 
-    def path_from_uri(self, uri):
-        _, path = uri.split("file://", 1)
-        return path
-
     def serve_hover(self, request):
         params = request["params"]
         pos = params["position"]
-        path = self.path_from_uri(params["textDocument"]["uri"])
+        path = path_from_uri(params["textDocument"]["uri"])
         source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
@@ -179,7 +181,7 @@ class LangServer(JSONRPC2Server):
     def serve_definition(self, request):
         params = request["params"]
         pos = params["position"]
-        path = self.path_from_uri(params["textDocument"]["uri"])
+        path = path_from_uri(params["textDocument"]["uri"])
         source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
@@ -213,7 +215,7 @@ class LangServer(JSONRPC2Server):
     def serve_references(self, request):
         params = request["params"]
         pos = params["position"]
-        path = self.path_from_uri(params["textDocument"]["uri"])
+        path = path_from_uri(params["textDocument"]["uri"])
         source = self.get_fs().open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
@@ -244,7 +246,15 @@ class LangServer(JSONRPC2Server):
         return refs
 
     def serve_symbols(self, request):
+        params = request["params"]
+
         symbols = self.workspace_symbols()
+        q, limit = params.get("query"), params.get("limit")
+        if q:
+            symbols.sort(reverse=True, key=lambda s: s.score(q))
+        if limit and len(symbols) > limit:
+            symbols = symbols[:limit]
+
         return [{
             "name": s.name,
             "kind": s.kind.value,

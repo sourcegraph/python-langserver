@@ -32,6 +32,30 @@ class Symbol:
         self.container = container
         self.file = file
 
+    def score(self, query: str) -> int:
+        """Score a symbol based on how well it matches a query.
+        Useful for sorting."""
+        score = 0
+        l_name, l_query = self.name.lower(), query.lower()
+        if query == self.name:
+            score += 10
+        elif l_name == l_query:
+            score += 8
+        if self.name.startswith(query):
+            score += 5
+        elif l_name.startswith(l_query):
+            score += 4
+        if l_query in l_name:
+            score += 2
+        if self.container:
+            if self.container.lower().startswith(l_query):
+                score += 2
+            if l_query == self.container.lower() + "." + l_name:
+                score += 10
+        if self.file and self.file.lower().startswith(l_query):
+            score += 1
+        return score
+
 class SymbolEmitter:
     """
     SymbolEmitter provides methods for generating symbol information for selected
