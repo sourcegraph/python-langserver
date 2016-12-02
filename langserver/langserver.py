@@ -53,22 +53,19 @@ class LangServer(JSONRPC2Server):
         super().__init__(conn=conn)
         self.root_path = None
         self.symbol_cache = None
-
-    # TODO figure out how to set self.fs instead of using this method.
-    def get_fs(self):
         if remote_fs:
-            return RemoteFileSystem(self)
+            self.fs = RemoteFileSystem(self)
         else:
-            return LocalFileSystem()
+            self.fs = LocalFileSystem()
 
     """Return a set of all python modules found within a given path."""
     def workspace_modules(self, path):
-        dir = self.get_fs().listdir(path)
+        dir = self.fs.listdir(path)
         modules = set()
         for e in dir:
             if e.is_dir:
                 subpath = filepath.join(path, e.name)
-                subdir = self.get_fs().listdir(subpath)
+                subdir = self.fs.listdir(subpath)
                 if any([s.name == "__init__.py" for s in subdir]):
                     modules.add(Module(e.name, filepath.join(subpath, "__init__.py"), True))
             else:
@@ -85,11 +82,11 @@ class LangServer(JSONRPC2Server):
         if self.symbol_cache:
             return self.symbol_cache
         symbols = []
-        for root, dirs, files in self.get_fs().walk(self.root_path):
+        for root, dirs, files in self.fs.walk(self.root_path):
             for f in files:
                 name, ext = filepath.splitext(f)
                 if ext == ".py":
-                    src = self.get_fs().open(f)
+                    src = self.fs.open(f)
                     s = SymbolEmitter(src, file=f)
                     symbols += s.symbols()
         self.symbol_cache = symbols
@@ -108,7 +105,7 @@ class LangServer(JSONRPC2Server):
             modules = self.workspace_modules(dir)
             for m in modules:
                 if m.name == string:
-                    c = self.get_fs().open(m.path)
+                    c = self.fs.open(m.path)
                     is_package = m.is_package
                     module_file = DummyFile(c)
                     module_path = filepath.dirname(m.path) if is_package else m.path
@@ -149,7 +146,7 @@ class LangServer(JSONRPC2Server):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        source = self.get_fs().open(path)
+        source = self.fs.open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = self.new_script(path=path, source=source, line=pos["line"]+1,
@@ -182,7 +179,7 @@ class LangServer(JSONRPC2Server):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        source = self.get_fs().open(path)
+        source = self.fs.open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = self.new_script(path=path, source=source, line=pos["line"]+1,
@@ -216,7 +213,7 @@ class LangServer(JSONRPC2Server):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        source = self.get_fs().open(path)
+        source = self.fs.open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = self.new_script(path=path, source=source, line=pos["line"]+1,
