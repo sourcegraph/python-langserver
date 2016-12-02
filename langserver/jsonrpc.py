@@ -4,7 +4,7 @@ import random
 import uuid
 from collections import OrderedDict
 
-from langserver.log import log
+from .log import log
 
 class JSONRPC2Error(Exception):
     pass

@@ -3,7 +3,7 @@ import os
 from abc import ABC, abstractmethod
 from typing import List
 
-from langserver.jsonrpc import JSONRPC2Server
+from .jsonrpc import JSONRPC2Server
 
 class FileException(Exception):
     pass

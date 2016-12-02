@@ -7,9 +7,9 @@ import traceback
 from os import path as filepath
 from abc import ABC, abstractmethod
 
-from langserver.fs import LocalFileSystem, RemoteFileSystem
-from langserver.jsonrpc import JSONRPC2Server, ReadWriter, TCPReadWriter
-from langserver.log import log
+from .fs import LocalFileSystem, RemoteFileSystem
+from .jsonrpc import JSONRPC2Server, ReadWriter, TCPReadWriter
+from .log import log
 from .symbols import SymbolEmitter
 
 # TODO(renfred) non-global config.
