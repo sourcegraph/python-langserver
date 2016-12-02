@@ -1,6 +1,8 @@
 import base64
 import json
 import random
+import uuid
+from collections import OrderedDict
 
 from langserver.log import log
 
@@ -37,6 +39,7 @@ class TCPReadWriter(ReadWriter):
 class JSONRPC2Server:
     def __init__(self, conn=None):
         self.conn = conn
+        self._msg_buffer = OrderedDict()
 
     def handle(self, id, request):
         pass
@@ -52,8 +55,7 @@ class JSONRPC2Server:
             except ValueError:
                 raise JSONRPC2Error("Invalid Content-Length header: {}".format(value))
 
-    """Read the next JSON RPC message sent over the current connection."""
-    def read_message(self):
+    def _receive(self):
         line = self.conn.readline()
         if line == "":
             raise EOFError()
@@ -62,7 +64,22 @@ class JSONRPC2Server:
         while line != "\r\n":
             line = self.conn.readline()
         body = self.conn.read(length)
-        return json.loads(body)
+        obj = json.loads(body)
+        # If the next message doesn't have an id, just give it a random key.
+        self._msg_buffer[obj.get("id") or uuid.uuid4()] = obj
+
+    def read_message(self, id=None):
+        """Read a JSON RPC message sent over the current connection. If
+        id is None, the next available message is returned."""
+        if id is not None:
+            while self._msg_buffer.get(id) is None:
+                self._receive()
+            return self._msg_buffer.pop(id)
+        else:
+            while len(self._msg_buffer) == 0:
+                self._receive()
+            _, msg = self._msg_buffer.popitem(last=False)
+            return msg
 
     def write_response(self, id, result):
         body = {
@@ -80,9 +97,10 @@ class JSONRPC2Server:
         log("RESPONSE: ", response)
 
     def send_request(self, method: str, params):
+        id = random.randint(0, 2**16) # TODO(renfred) guarantee uniqueness.
         body = {
             "jsonrpc": "2.0",
-            "id": random.randint(0, 2**16),
+            "id": id,
             "method": method,
             "params": params,
         }
@@ -94,7 +112,7 @@ class JSONRPC2Server:
             "{}".format(content_length, body))
         log("SENDING REQUEST: ", request)
         self.conn.write(request)
-        return self.read_message()
+        return self.read_message(id)
 
     def serve(self):
         while True:
