@@ -6,6 +6,7 @@ import socketserver
 import traceback
 from os import path as filepath
 from abc import ABC, abstractmethod
+from typing import List
 
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jsonrpc import JSONRPC2Server, ReadWriter, TCPReadWriter
@@ -59,23 +60,23 @@ class LangServer(JSONRPC2Server):
             self.fs = LocalFileSystem()
 
     """Return a set of all python modules found within a given path."""
-    def workspace_modules(self, path):
+    def workspace_modules(self, path) -> List[Module]:
         dir = self.fs.listdir(path)
-        modules = set()
+        modules = []
         for e in dir:
             if e.is_dir:
                 subpath = filepath.join(path, e.name)
                 subdir = self.fs.listdir(subpath)
                 if any([s.name == "__init__.py" for s in subdir]):
-                    modules.add(Module(e.name, filepath.join(subpath, "__init__.py"), True))
+                    modules.append(Module(e.name, filepath.join(subpath, "__init__.py"), True))
             else:
                 name, ext = filepath.splitext(e.name)
                 if ext == ".py":
                     if name == "__init__":
                         name = filepath.basename(path)
-                        modules.add(Module(name, filepath.join(path, e.name), True))
+                        modules.append(Module(name, filepath.join(path, e.name), True))
                     else:
-                        modules.add(Module(name, filepath.join(path, e.name)))
+                        modules.append(Module(name, filepath.join(path, e.name)))
         return modules
 
     def workspace_symbols(self):
