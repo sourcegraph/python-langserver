@@ -93,13 +93,13 @@ class LangServer(JSONRPC2Server):
         self.symbol_cache = symbols
         return symbols
 
-    """Return an initialized Jedi API Script object."""
     def new_script(self, *args, **kwargs):
+        """Return an initialized Jedi API Script object."""
         path = kwargs.get("path")
 
-        """A swap-in replacement for Jedi's find module function that uses the
-        remote fs to resolve module imports."""
         def find_module_remote(string, dir=None):
+            """A swap-in replacement for Jedi's find module function that uses the
+            remote fs to resolve module imports."""
             if type(dir) is list: # TODO(renfred): handle list input for paths.
                 dir = dir[0]
             dir = dir or filepath.dirname(path)
@@ -113,8 +113,27 @@ class LangServer(JSONRPC2Server):
                     return module_file, module_path, is_package
             else:
                 raise ImportError('Module "{}" not found in {}', string, dir)
-        find_module = find_module_remote if remote_fs else None
-        return jedi.api.Script(*args, **kwargs, find_module=find_module)
+
+        def list_modules() -> List[str]:
+            modules = []
+            for root, _, files in self.fs.walk(self.root_path):
+                for f in files:
+                    name, ext = filepath.splitext(f)
+                    if ext == ".py":
+                        modules.append(filepath.join(root, f))
+            return modules
+
+        def load_source(path) -> str:
+            return self.fs.open(path)
+
+        if remote_fs:
+            find_module_func, list_modules_func, load_source_func = \
+                find_module_remote, list_modules, load_source
+        else:
+            find_module_func, list_modules_func, load_source_func = None, None, None
+        return jedi.api.Script(*args, **kwargs, find_module=find_module_func,
+                               list_modules=list_modules_func,
+                               load_source=load_source_func)
 
     def handle(self, id, request):
         log("REQUEST: ", request)
@@ -165,7 +184,7 @@ class LangServer(JSONRPC2Server):
 
         # TODO(renfred): better failure mode
         if d is None:
-            value = error or "404 Not Found"
+            value = error or "Definition Not Found"
             return {
                 "contents": [{"language": "markdown", "value": value}],
             }
@@ -237,7 +256,7 @@ class LangServer(JSONRPC2Server):
                     },
                     "end": {
                         "line": u.line-1,
-                        "character": u.column,
+                        "character": u.column+len(u.name),
                     }
                 }
             })

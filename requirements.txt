@@ -1,2 +1,3 @@
 astroid==1.4.8
--e git://github.com/sourcegraph/jedi.git@582460bcd33224d79952b0be24f8c492baa7f162#egg=jedi
+-e git://github.com/sourcegraph/jedi.git@877d84a1c5fbb10e7ac9ed81c2c232020e047fce#egg=jedi
+
