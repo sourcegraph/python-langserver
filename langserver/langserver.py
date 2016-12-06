@@ -41,7 +41,11 @@ class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class LangserverTCPTransport(socketserver.StreamRequestHandler):
     def handle(self):
         s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
-        s.listen()
+        try:
+            s.listen()
+        except Exception as e:
+            tb = traceback.format_exc()
+            log("ERROR: {} {}".format(e, tb))
 
 def path_from_uri(uri):
     if not uri.startswith("file://"):
@@ -216,7 +220,8 @@ class LangServer(JSONRPC2Connection):
         if d is None: return {}
 
         return {
-            "uri": "file://" + d.module_path,
+            # TODO(renfred) determine why d.module_path is empty.
+            "uri": "file://" + (d.module_path or path),
             "range": {
                 "start": {
                     "line": d.line-1,
