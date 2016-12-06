@@ -36,7 +36,7 @@ class TCPReadWriter(ReadWriter):
         self.writer.write(out.encode())
         self.writer.flush()
 
-class JSONRPC2Server:
+class JSONRPC2Connection:
     def __init__(self, conn=None):
         self.conn = conn
         self._msg_buffer = OrderedDict()
@@ -114,7 +114,7 @@ class JSONRPC2Server:
         self.conn.write(request)
         return self.read_message(id)
 
-    def serve(self):
+    def listen(self):
         while True:
             try:
                 request = self.read_message()

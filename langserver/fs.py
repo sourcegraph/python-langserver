@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import List
 
-from .jsonrpc import JSONRPC2Server
+from .jsonrpc import JSONRPC2Connection
 
 class FileException(Exception):
     pass
@@ -50,19 +50,19 @@ class LocalFileSystem(FileSystem):
         return entries
 
 class RemoteFileSystem(FileSystem):
-    def __init__(self, server: JSONRPC2Server):
-        self.server = server
+    def __init__(self, conn: JSONRPC2Connection):
+        self.conn = conn
 
     @lru_cache(maxsize=128)
     def open(self, path):
-        resp = self.server.send_request("fs/readFile", path)
+        resp = self.conn.send_request("fs/readFile", path)
         if resp.get("error") is not None:
             raise FileException(resp["error"])
         return base64.b64decode(resp["result"]).decode("utf-8")
 
     @lru_cache(maxsize=128)
     def listdir(self, path):
-        resp = self.server.send_request("fs/readDir", path)
+        resp = self.conn.send_request("fs/readDir", path)
         if resp.get("error") is not None:
             raise FileException(resp["error"])
         entries = []

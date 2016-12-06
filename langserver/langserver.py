@@ -9,7 +9,7 @@ from abc import ABC, abstractmethod
 from typing import List
 
 from .fs import LocalFileSystem, RemoteFileSystem
-from .jsonrpc import JSONRPC2Server, ReadWriter, TCPReadWriter
+from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .log import log
 from .symbols import SymbolEmitter
 
@@ -41,7 +41,7 @@ class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class LangserverTCPTransport(socketserver.StreamRequestHandler):
     def handle(self):
         s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
-        s.serve()
+        s.listen()
 
 def path_from_uri(uri):
     if not uri.startswith("file://"):
@@ -49,7 +49,7 @@ def path_from_uri(uri):
     _, path = uri.split("file://", 1)
     return path
 
-class LangServer(JSONRPC2Server):
+class LangServer(JSONRPC2Connection):
     def __init__(self, conn=None):
         super().__init__(conn=conn)
         self.root_path = None
@@ -309,7 +309,7 @@ def main():
     if args.mode == "stdio":
         log("Reading on stdin, writing on stdout")
         s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
-        s.serve()
+        s.listen()
     elif args.mode == "tcp":
         host, addr = "0.0.0.0", args.addr
         log("Accepting TCP connections on {}:{}".format(host, addr))
