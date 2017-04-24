@@ -13,9 +13,6 @@ from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .log import log
 from .symbols import SymbolEmitter
 
-# TODO(renfred) non-global config.
-remote_fs = False
-
 class Module:
     def __init__(self, name, path, is_package=False):
         self.name = name
@@ -58,10 +55,7 @@ class LangServer(JSONRPC2Connection):
         super().__init__(conn=conn)
         self.root_path = None
         self.symbol_cache = None
-        if remote_fs:
-            self.fs = RemoteFileSystem(self)
-        else:
-            self.fs = LocalFileSystem()
+        self.fs = None # Set after initialize request
 
     """Return a set of all python modules found within a given path."""
     def workspace_modules(self, path) -> List[Module]:
@@ -130,17 +124,17 @@ class LangServer(JSONRPC2Connection):
         def load_source(path) -> str:
             return self.fs.open(path)
 
-        if remote_fs:
-            find_module_func, list_modules_func, load_source_func = \
-                find_module_remote, list_modules, load_source
-        else:
-            find_module_func, list_modules_func, load_source_func = None, None, None
-        return jedi.api.Script(*args, **kwargs, find_module=find_module_func,
-                               list_modules=list_modules_func,
-                               load_source=load_source_func)
+        # TODO(keegan) It shouldn't matter if we are using a remote fs or not. Consider other ways to hook into the import system.
+        if isinstance(self.fs, RemoteFileSystem):
+            kwargs.update(
+                find_module=find_module_remote,
+                list_modules=list_modules,
+                load_source=load_source,
+            )
+        return jedi.api.Script(*args, **kwargs)
 
     def handle(self, request):
-        log("REQUEST: ", request)
+        log("REQUEST: ", request.get("id"), request.get("method"))
 
         handler = {
             "initialize": self.serve_initialize,
@@ -164,13 +158,23 @@ class LangServer(JSONRPC2Connection):
         except JSONRPC2Error as e:
             self.write_error(request["id"], code=e.code, message=e.message, data=e.data)
         except Exception as e:
-            self.write_error(request["id"], code=-32603, message=str(e))
+            self.write_error(request["id"], code=-32603, message=str(e), data={
+                "traceback": traceback.format_exc(),
+            })
         else:
             self.write_response(request["id"], resp)
 
     def serve_initialize(self, request):
         params = request["params"]
         self.root_path = path_from_uri(params["rootPath"])
+
+        caps = params.get("capabilities", {})
+        if caps.get("xcontentProvider") and caps.get("xfilesProvider"):
+            # The client supports a remote fs
+            self.fs = RemoteFileSystem(self)
+        else:
+            self.fs = LocalFileSystem()
+
         return {
             "capabilities": {
                 "hoverProvider": True,
@@ -325,17 +329,9 @@ class JSONRPC2Error(Exception):
 def main():
     parser = argparse.ArgumentParser(description="")
     parser.add_argument("--mode", default="stdio", help="communication (stdio|tcp)")
-    # TODO use this
-    parser.add_argument("--fs", default="remote", help="file system (local|remote)")
     parser.add_argument("--addr", default=4389, help="server listen (tcp)", type=int)
-    parser.add_argument("--remote", default=0, help="temp, enable remote fs",
-                        type=int) # TODO(renfred) remove
 
     args = parser.parse_args()
-    rw = None
-
-    global remote_fs
-    remote_fs = bool(args.remote)
 
     if args.mode == "stdio":
         log("Reading on stdin, writing on stdout")

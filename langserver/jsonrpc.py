@@ -61,6 +61,7 @@ class JSONRPC2Connection:
         while line != "\r\n":
             line = self.conn.readline()
         body = self.conn.read(length)
+        log("RECV: ", body)
         obj = json.loads(body)
         # If the next message doesn't have an id, just give it a random key.
         self._msg_buffer[obj.get("id") or uuid.uuid4()] = obj
@@ -86,7 +87,7 @@ class JSONRPC2Connection:
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body))
         self.conn.write(response)
-        log("RESPONSE: ", body)
+        log("SEND: ", body)
 
     def write_response(self, id, result):
         body = {
