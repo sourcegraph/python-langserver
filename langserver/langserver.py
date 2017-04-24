@@ -139,32 +139,46 @@ class LangServer(JSONRPC2Connection):
                                list_modules=list_modules_func,
                                load_source=load_source_func)
 
-    def handle(self, id, request):
+    def handle(self, request):
         log("REQUEST: ", request)
-        resp = None
 
-        if request["method"] == "initialize":
-            params = request["params"]
-            self.root_path = path_from_uri(params["rootPath"])
-            resp = {
-                "capabilities": {
-                    "hoverProvider": True,
-                    "definitionProvider": True,
-                    "referencesProvider": True,
-                    "workspaceSymbolProvider": True
-                }
-            }
-        elif request["method"] == "textDocument/hover":
-            resp = self.serve_hover(request)
-        elif request["method"] == "textDocument/definition":
-            resp = self.serve_definition(request)
-        elif request["method"] == "textDocument/references":
-            resp = self.serve_references(request)
-        elif request["method"] == "workspace/symbol":
-            resp = self.serve_symbols(request)
+        handler = {
+            "initialize": self.serve_initialize,
+            "textDocument/hover": self.serve_hover,
+            "textDocument/definition": self.serve_definition,
+            "textDocument/references": self.serve_references,
+            "workspace/symbol": self.serve_symbols,
+            "exit": self.serve_exit,
+        }.get(request["method"], self.serve_default)
 
-        if resp is not None:
+        # We handle notifs differently since we can't respond
+        if "id" not in request:
+            try:
+                handler(request)
+            except Exception as e:
+                log("NOTIF ERROR:", e)
+            return
+
+        try:
+            resp = handler(request)
+        except JSONRPC2Error as e:
+            self.write_error(request["id"], code=e.code, message=e.message, data=e.data)
+        except Exception as e:
+            self.write_error(request["id"], code=-32603, message=str(e))
+        else:
             self.write_response(request["id"], resp)
+
+    def serve_initialize(self, request):
+        params = request["params"]
+        self.root_path = path_from_uri(params["rootPath"])
+        return {
+            "capabilities": {
+                "hoverProvider": True,
+                "definitionProvider": True,
+                "referencesProvider": True,
+                "workspaceSymbolProvider": True
+            }
+        }
 
     def serve_hover(self, request):
         params = request["params"]
@@ -295,6 +309,18 @@ class LangServer(JSONRPC2Connection):
                 }
             },
         } for s in symbols]
+
+    def serve_exit(self, request):
+        self.conn.close()
+
+    def serve_default(self, request):
+        raise JSONRPC2Error(code=-32601, message="method {} not found".format(request["method"]))
+
+class JSONRPC2Error(Exception):
+    def __init__(self, code, message, data=None):
+        self.code = code
+        self.message = message
+        self.data = data
 
 def main():
     parser = argparse.ArgumentParser(description="")

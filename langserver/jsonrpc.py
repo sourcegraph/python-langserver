@@ -41,9 +41,6 @@ class JSONRPC2Connection:
         self.conn = conn
         self._msg_buffer = OrderedDict()
 
-    def handle(self, id, request):
-        pass
-
     def _read_header_content_length(self, line):
         if len(line) < 2 or line[-2:] != "\r\n":
             raise JSONRPC2ProtocolError("Line endings must be \\r\\n")
@@ -81,12 +78,7 @@ class JSONRPC2Connection:
             _, msg = self._msg_buffer.popitem(last=False)
             return msg
 
-    def write_response(self, id, result):
-        body = {
-            "jsonrpc": "2.0",
-            "id": id,
-            "result": result,
-        }
+    def _send(self, body):
         body = json.dumps(body, separators=(",", ":"))
         content_length = len(body)
         response = (
@@ -94,7 +86,29 @@ class JSONRPC2Connection:
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body))
         self.conn.write(response)
-        log("RESPONSE: ", response)
+        log("RESPONSE: ", body)
+
+    def write_response(self, id, result):
+        body = {
+            "jsonrpc": "2.0",
+            "id": id,
+            "result": result,
+        }
+        self._send(body)
+
+    def write_error(self, rid, code, message, data=None):
+        e = {
+            "code": code,
+            "message": message,
+        }
+        if data is not None:
+            e["data"] = data
+        body = {
+            "jsonrpc": "2.0",
+            "id": rid,
+            "error": e,
+        }
+        self._send(body)
 
     def send_request(self, method: str, params):
         id = random.randint(0, 2**16) # TODO(renfred) guarantee uniqueness.
@@ -104,14 +118,7 @@ class JSONRPC2Connection:
             "method": method,
             "params": params,
         }
-        body = json.dumps(body, separators=(",", ":"))
-        content_length = len(body)
-        request = (
-            "Content-Length: {}\r\n"
-            "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
-            "{}".format(content_length, body))
-        log("SENDING REQUEST: ", request)
-        self.conn.write(request)
+        self._send(body)
         return self.read_message(id)
 
     def listen(self):
@@ -120,5 +127,5 @@ class JSONRPC2Connection:
                 request = self.read_message()
             except EOFError:
                 break
-            self.handle(id, request)
+            self.handle(request)
 
