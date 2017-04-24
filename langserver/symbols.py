@@ -1,5 +1,6 @@
 import astroid as ast
 import json
+from astroid.exceptions import AstroidError
 from enum import Enum
 
 class SymbolKind(Enum):
@@ -66,7 +67,11 @@ class SymbolEmitter:
         self.file = file
 
     def symbols(self):
-        t = ast.parse(self.source)
+        try:
+            t = ast.parse(self.source)
+        except AstroidError:
+            # If we fail to parse the AST, ignore the file
+            return []
         return list(self._visit(t))
 
     def _visit(self, node):
