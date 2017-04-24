@@ -141,6 +141,7 @@ class LangServer(JSONRPC2Connection):
             "textDocument/hover": self.serve_hover,
             "textDocument/definition": self.serve_definition,
             "textDocument/references": self.serve_references,
+            "textDocument/documentSymbol": self.serve_documentSymbols,
             "workspace/symbol": self.serve_symbols,
             "exit": self.serve_exit,
         }.get(request["method"], self.serve_default)
@@ -180,7 +181,8 @@ class LangServer(JSONRPC2Connection):
                 "hoverProvider": True,
                 "definitionProvider": True,
                 "referencesProvider": True,
-                "workspaceSymbolProvider": True
+                "documentSymbolProvider": True,
+                "workspaceSymbolProvider": True,
             }
         }
 
@@ -295,24 +297,15 @@ class LangServer(JSONRPC2Connection):
         if limit and len(symbols) > limit:
             symbols = symbols[:limit]
 
-        return [{
-            "name": s.name,
-            "kind": s.kind.value,
-            "containerName": s.container,
-            "location": {
-                "uri": "file://" + s.file,
-                "range": {
-                    "start": {
-                        "line": s.line-1,
-                        "character": s.col,
-                    },
-                    "end": {
-                        "line": s.line-1,
-                        "character": s.col,
-                    }
-                }
-            },
-        } for s in symbols]
+        return [s.json_object() for s in symbols]
+
+    def serve_documentSymbols(self, request):
+        params = request["params"]
+        path = path_from_uri(params["textDocument"]["uri"])
+        source = self.fs.open(path)
+        emitter = SymbolEmitter(source, file=path)
+        symbols = emitter.symbols()
+        return [s.json_object() for s in symbols]
 
     def serve_exit(self, request):
         self.conn.close()

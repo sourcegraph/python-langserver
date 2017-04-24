@@ -57,6 +57,28 @@ class Symbol:
             score += 1
         return score
 
+    def json_object(self):
+        d = {
+            "name": self.name,
+            "kind": self.kind.value,
+            "location": {
+                "uri": "file://" + self.file,
+                "range": {
+                    "start": {
+                        "line": self.line-1,
+                        "character": self.col,
+                    },
+                    "end": {
+                        "line": self.line-1,
+                        "character": self.col,
+                    }
+                }
+            },
+        }
+        if self.container is not None:
+            d["containerName"] = self.container
+        return d
+
 class SymbolEmitter:
     """
     SymbolEmitter provides methods for generating symbol information for selected
