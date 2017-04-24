@@ -143,6 +143,7 @@ class LangServer(JSONRPC2Connection):
             "textDocument/references": self.serve_references,
             "textDocument/documentSymbol": self.serve_documentSymbols,
             "workspace/symbol": self.serve_symbols,
+            "shutdown": self.serve_exit,
             "exit": self.serve_exit,
         }.get(request["method"], self.serve_default)
 
