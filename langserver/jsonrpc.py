@@ -6,7 +6,7 @@ from collections import OrderedDict
 
 from .log import log
 
-class JSONRPC2Error(Exception):
+class JSONRPC2ProtocolError(Exception):
     pass
 
 class ReadWriter:
@@ -46,14 +46,14 @@ class JSONRPC2Connection:
 
     def _read_header_content_length(self, line):
         if len(line) < 2 or line[-2:] != "\r\n":
-            raise JSONRPC2Error("Line endings must be \\r\\n")
+            raise JSONRPC2ProtocolError("Line endings must be \\r\\n")
         if line.startswith("Content-Length: "):
             _, value = line.split("Content-Length: ")
             value = value.strip()
             try:
                 return int(value)
             except ValueError:
-                raise JSONRPC2Error("Invalid Content-Length header: {}".format(value))
+                raise JSONRPC2ProtocolError("Invalid Content-Length header: {}".format(value))
 
     def _receive(self):
         line = self.conn.readline()
