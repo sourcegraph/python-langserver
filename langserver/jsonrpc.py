@@ -2,9 +2,8 @@ import base64
 import json
 import random
 import uuid
+import logging
 from collections import OrderedDict
-
-from .log import log
 
 
 class JSONRPC2ProtocolError(Exception):
@@ -45,6 +44,7 @@ class JSONRPC2Connection:
         self.conn = conn
         self.running = True
         self._msg_buffer = OrderedDict()
+        self.log = logging.getLogger(__name__)
 
     def _read_header_content_length(self, line):
         if len(line) < 2 or line[-2:] != "\r\n":
@@ -67,7 +67,7 @@ class JSONRPC2Connection:
         while line != "\r\n":
             line = self.conn.readline()
         body = self.conn.read(length)
-        log("RECV: ", body)
+        self.log.debug("RECV %s", body)
         obj = json.loads(body)
         # If the next message doesn't have an id, just give it a random key.
         self._msg_buffer[obj.get("id") or uuid.uuid4()] = obj
@@ -93,7 +93,7 @@ class JSONRPC2Connection:
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body))
         self.conn.write(response)
-        log("SEND: ", body)
+        self.log.debug("SEND %s", body)
 
     def write_response(self, id, result):
         body = {

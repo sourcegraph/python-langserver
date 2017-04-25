@@ -1,6 +1,7 @@
 import sys
 import jedi
 import argparse
+import logging
 import socket
 import socketserver
 import traceback
@@ -10,7 +11,6 @@ from typing import List
 
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .log import log
 from .symbols import SymbolEmitter
 
 
@@ -141,7 +141,8 @@ class LangServer(JSONRPC2Connection):
         return jedi.api.Script(*args, **kwargs)
 
     def handle(self, request):
-        log("REQUEST: ", request.get("id"), request.get("method"))
+        self.log.info("REQUEST %s %s", request.get("id"),
+                      request.get("method"))
 
         handler = {
             "initialize": self.serve_initialize,
@@ -150,7 +151,7 @@ class LangServer(JSONRPC2Connection):
             "textDocument/references": self.serve_references,
             "textDocument/documentSymbol": self.serve_documentSymbols,
             "workspace/symbol": self.serve_symbols,
-            "shutdown": lambda *a: None, # Shutdown is a noop
+            "shutdown": lambda *a: None,  # Shutdown is a noop
             "exit": self.serve_exit,
         }.get(request["method"], self.serve_default)
 
@@ -159,7 +160,8 @@ class LangServer(JSONRPC2Connection):
             try:
                 handler(request)
             except Exception as e:
-                log("NOTIF ERROR:", e)
+                self.log.warning(
+                    "error handling notification %s", request, exc_info=True)
             return
 
         try:
@@ -218,8 +220,8 @@ class LangServer(JSONRPC2Connection):
         except Exception as e:
             # TODO return these errors using JSONRPC properly. Doing it this way
             # initially for debugging purposes.
-            log(traceback.format_exc())
-            error = "ERROR {}: {}".format(type(e), e)
+            self.log.error(
+                "Failed goto_definitions for %s", request, exc_info=True)
         d = defs[0] if len(defs) > 0 else None
 
         # TODO(renfred): better failure mode
@@ -357,16 +359,18 @@ def main():
         "--mode", default="stdio", help="communication (stdio|tcp)")
     parser.add_argument(
         "--addr", default=4389, help="server listen (tcp)", type=int)
+    parser.add_argument("--debug", action="store_true")
 
     args = parser.parse_args()
 
+    logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
     if args.mode == "stdio":
-        log("Reading on stdin, writing on stdout")
+        logging.info("Reading on stdin, writing on stdout")
         s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
         s.listen()
     elif args.mode == "tcp":
         host, addr = "0.0.0.0", args.addr
-        log("Accepting TCP connections on {}:{}".format(host, addr))
+        logging.info("Accepting TCP connections on %s:%s", host, addr)
         ThreadingTCPServer.allow_reuse_address = True
         ThreadingTCPServer.daemon_threads = True
         s = ThreadingTCPServer((host, addr), LangserverTCPTransport)
