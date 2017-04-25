@@ -6,8 +6,10 @@ from collections import OrderedDict
 
 from .log import log
 
+
 class JSONRPC2ProtocolError(Exception):
     pass
+
 
 class ReadWriter:
     def __init__(self, reader, writer):
@@ -24,6 +26,7 @@ class ReadWriter:
         self.writer.write(out)
         self.writer.flush()
 
+
 class TCPReadWriter(ReadWriter):
     def readline(self, *args):
         data = self.reader.readline(*args)
@@ -35,6 +38,7 @@ class TCPReadWriter(ReadWriter):
     def write(self, out):
         self.writer.write(out.encode())
         self.writer.flush()
+
 
 class JSONRPC2Connection:
     def __init__(self, conn=None):
@@ -50,7 +54,8 @@ class JSONRPC2Connection:
             try:
                 return int(value)
             except ValueError:
-                raise JSONRPC2ProtocolError("Invalid Content-Length header: {}".format(value))
+                raise JSONRPC2ProtocolError(
+                    "Invalid Content-Length header: {}".format(value))
 
     def _receive(self):
         line = self.conn.readline()
@@ -112,7 +117,7 @@ class JSONRPC2Connection:
         self._send(body)
 
     def send_request(self, method: str, params):
-        id = random.randint(0, 2**16) # TODO(renfred) guarantee uniqueness.
+        id = random.randint(0, 2**16)  # TODO(renfred) guarantee uniqueness.
         body = {
             "jsonrpc": "2.0",
             "id": id,
@@ -129,4 +134,3 @@ class JSONRPC2Connection:
             except EOFError:
                 break
             self.handle(request)
-

@@ -6,15 +6,19 @@ from typing import List
 
 from .jsonrpc import JSONRPC2Connection
 
+
 class FileException(Exception):
     pass
 
+
 class Entry:
     """Generic representation of a directory entry."""
+
     def __init__(self, name, is_dir, size):
         self.name = name
         self.is_dir = is_dir
         self.size = size
+
 
 class FileSystem(ABC):
     @abstractmethod
@@ -37,6 +41,7 @@ class FileSystem(ABC):
         for d in dirs:
             yield from self.walk(d)
 
+
 class LocalFileSystem(FileSystem):
     def open(self, path):
         return open(path).read()
@@ -48,6 +53,7 @@ class LocalFileSystem(FileSystem):
             p = os.path.join(path, n)
             entries.append(Entry(n, os.path.isdir(p), os.path.getsize(p)))
         return entries
+
 
 class RemoteFileSystem(FileSystem):
     def __init__(self, conn: JSONRPC2Connection):
@@ -69,4 +75,3 @@ class RemoteFileSystem(FileSystem):
         for e in resp["result"]:
             entries.append(Entry(e["name"], e["dir"], e["size"]))
         return entries
-

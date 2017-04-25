@@ -13,6 +13,7 @@ from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .log import log
 from .symbols import SymbolEmitter
 
+
 class Module:
     def __init__(self, name, path, is_package=False):
         self.name = name
@@ -21,6 +22,7 @@ class Module:
 
     def __repr__(self):
         return "PythonModule({}, {})".format(self.name, self.path)
+
 
 class DummyFile:
     def __init__(self, contents):
@@ -32,8 +34,10 @@ class DummyFile:
     def close(self):
         pass
 
+
 class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
     pass
+
 
 class LangserverTCPTransport(socketserver.StreamRequestHandler):
     def handle(self):
@@ -44,20 +48,23 @@ class LangserverTCPTransport(socketserver.StreamRequestHandler):
             tb = traceback.format_exc()
             log("ERROR: {} {}".format(e, tb))
 
+
 def path_from_uri(uri):
     if not uri.startswith("file://"):
         return uri
     _, path = uri.split("file://", 1)
     return path
 
+
 class LangServer(JSONRPC2Connection):
     def __init__(self, conn=None):
         super().__init__(conn=conn)
         self.root_path = None
         self.symbol_cache = None
-        self.fs = None # Set after initialize request
+        self.fs = None  # Set after initialize request
 
     """Return a set of all python modules found within a given path."""
+
     def workspace_modules(self, path) -> List[Module]:
         dir = self.fs.listdir(path)
         modules = []
@@ -66,15 +73,19 @@ class LangServer(JSONRPC2Connection):
                 subpath = filepath.join(path, e.name)
                 subdir = self.fs.listdir(subpath)
                 if any([s.name == "__init__.py" for s in subdir]):
-                    modules.append(Module(e.name, filepath.join(subpath, "__init__.py"), True))
+                    modules.append(
+                        Module(e.name,
+                               filepath.join(subpath, "__init__.py"), True))
             else:
                 name, ext = filepath.splitext(e.name)
                 if ext == ".py":
                     if name == "__init__":
                         name = filepath.basename(path)
-                        modules.append(Module(name, filepath.join(path, e.name), True))
+                        modules.append(
+                            Module(name, filepath.join(path, e.name), True))
                     else:
-                        modules.append(Module(name, filepath.join(path, e.name)))
+                        modules.append(
+                            Module(name, filepath.join(path, e.name)))
         return modules
 
     def workspace_symbols(self):
@@ -98,7 +109,7 @@ class LangServer(JSONRPC2Connection):
         def find_module_remote(string, dir=None):
             """A swap-in replacement for Jedi's find module function that uses the
             remote fs to resolve module imports."""
-            if type(dir) is list: # TODO(renfred): handle list input for paths.
+            if type(dir) is list:  # TODO(renfred): handle list input for paths.
                 dir = dir[0]
             dir = dir or filepath.dirname(path)
             modules = self.workspace_modules(dir)
@@ -107,7 +118,8 @@ class LangServer(JSONRPC2Connection):
                     c = self.fs.open(m.path)
                     is_package = m.is_package
                     module_file = DummyFile(c)
-                    module_path = filepath.dirname(m.path) if is_package else m.path
+                    module_path = filepath.dirname(
+                        m.path) if is_package else m.path
                     return module_file, module_path, is_package
             else:
                 raise ImportError('Module "{}" not found in {}', string, dir)
@@ -129,8 +141,7 @@ class LangServer(JSONRPC2Connection):
             kwargs.update(
                 find_module=find_module_remote,
                 list_modules=list_modules,
-                load_source=load_source,
-            )
+                load_source=load_source, )
         return jedi.api.Script(*args, **kwargs)
 
     def handle(self, request):
@@ -158,11 +169,16 @@ class LangServer(JSONRPC2Connection):
         try:
             resp = handler(request)
         except JSONRPC2Error as e:
-            self.write_error(request["id"], code=e.code, message=e.message, data=e.data)
+            self.write_error(
+                request["id"], code=e.code, message=e.message, data=e.data)
         except Exception as e:
-            self.write_error(request["id"], code=-32603, message=str(e), data={
-                "traceback": traceback.format_exc(),
-            })
+            self.write_error(
+                request["id"],
+                code=-32603,
+                message=str(e),
+                data={
+                    "traceback": traceback.format_exc(),
+                })
         else:
             self.write_response(request["id"], resp)
 
@@ -194,8 +210,11 @@ class LangServer(JSONRPC2Connection):
         source = self.fs.open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
-        script = self.new_script(path=path, source=source, line=pos["line"]+1,
-                                 column=pos["character"])
+        script = self.new_script(
+            path=path,
+            source=source,
+            line=pos["line"] + 1,
+            column=pos["character"])
 
         defs, error = [], None
         try:
@@ -211,13 +230,19 @@ class LangServer(JSONRPC2Connection):
         if d is None:
             value = error or "Definition Not Found"
             return {
-                "contents": [{"language": "markdown", "value": value}],
+                "contents": [{
+                    "language": "markdown",
+                    "value": value
+                }],
             }
 
         hover_info = d.docstring() or d.description
         return {
             # TODO(renfred): convert reStructuredText docstrings to markdown.
-            "contents": [{"language": "markdown", "value": hover_info}],
+            "contents": [{
+                "language": "markdown",
+                "value": hover_info
+            }],
         }
 
     def serve_definition(self, request):
@@ -227,8 +252,11 @@ class LangServer(JSONRPC2Connection):
         source = self.fs.open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
-        script = self.new_script(path=path, source=source, line=pos["line"]+1,
-                                 column=pos["character"])
+        script = self.new_script(
+            path=path,
+            source=source,
+            line=pos["line"] + 1,
+            column=pos["character"])
 
         defs = script.goto_definitions()
         assigns = script.goto_assignments()
@@ -245,11 +273,11 @@ class LangServer(JSONRPC2Connection):
             "uri": "file://" + (d.module_path or path),
             "range": {
                 "start": {
-                    "line": d.line-1,
+                    "line": d.line - 1,
                     "character": d.column,
                 },
                 "end": {
-                    "line": d.line-1,
+                    "line": d.line - 1,
                     "character": d.column,
                 }
             }
@@ -262,8 +290,11 @@ class LangServer(JSONRPC2Connection):
         source = self.fs.open(path)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
-        script = self.new_script(path=path, source=source, line=pos["line"]+1,
-                                 column=pos["character"])
+        script = self.new_script(
+            path=path,
+            source=source,
+            line=pos["line"] + 1,
+            column=pos["character"])
 
         usages = script.usages()
         if len(usages) == 0:
@@ -277,12 +308,12 @@ class LangServer(JSONRPC2Connection):
                 "uri": "file://" + u.module_path,
                 "range": {
                     "start": {
-                        "line": u.line-1,
+                        "line": u.line - 1,
                         "character": u.column,
                     },
                     "end": {
-                        "line": u.line-1,
-                        "character": u.column+len(u.name),
+                        "line": u.line - 1,
+                        "character": u.column + len(u.name),
                     }
                 }
             })
@@ -312,7 +343,10 @@ class LangServer(JSONRPC2Connection):
         self.conn.close()
 
     def serve_default(self, request):
-        raise JSONRPC2Error(code=-32601, message="method {} not found".format(request["method"]))
+        raise JSONRPC2Error(
+            code=-32601,
+            message="method {} not found".format(request["method"]))
+
 
 class JSONRPC2Error(Exception):
     def __init__(self, code, message, data=None):
@@ -320,10 +354,13 @@ class JSONRPC2Error(Exception):
         self.message = message
         self.data = data
 
+
 def main():
     parser = argparse.ArgumentParser(description="")
-    parser.add_argument("--mode", default="stdio", help="communication (stdio|tcp)")
-    parser.add_argument("--addr", default=4389, help="server listen (tcp)", type=int)
+    parser.add_argument(
+        "--mode", default="stdio", help="communication (stdio|tcp)")
+    parser.add_argument(
+        "--addr", default=4389, help="server listen (tcp)", type=int)
 
     args = parser.parse_args()
 
@@ -340,6 +377,7 @@ def main():
             s.serve_forever()
         finally:
             s.shutdown()
+
 
 if __name__ == "__main__":
     main()
