@@ -42,11 +42,7 @@ class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 class LangserverTCPTransport(socketserver.StreamRequestHandler):
     def handle(self):
         s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
-        try:
-            s.listen()
-        except Exception as e:
-            tb = traceback.format_exc()
-            log("ERROR: {} {}".format(e, tb))
+        s.listen()
 
 
 def path_from_uri(uri):
@@ -154,7 +150,7 @@ class LangServer(JSONRPC2Connection):
             "textDocument/references": self.serve_references,
             "textDocument/documentSymbol": self.serve_documentSymbols,
             "workspace/symbol": self.serve_symbols,
-            "shutdown": self.serve_exit,
+            "shutdown": lambda *a: None, # Shutdown is a noop
             "exit": self.serve_exit,
         }.get(request["method"], self.serve_default)
 
@@ -340,7 +336,7 @@ class LangServer(JSONRPC2Connection):
         return [s.json_object() for s in symbols]
 
     def serve_exit(self, request):
-        self.conn.close()
+        self.stop()
 
     def serve_default(self, request):
         raise JSONRPC2Error(
@@ -372,6 +368,7 @@ def main():
         host, addr = "0.0.0.0", args.addr
         log("Accepting TCP connections on {}:{}".format(host, addr))
         ThreadingTCPServer.allow_reuse_address = True
+        ThreadingTCPServer.daemon_threads = True
         s = ThreadingTCPServer((host, addr), LangserverTCPTransport)
         try:
             s.serve_forever()

@@ -43,6 +43,7 @@ class TCPReadWriter(ReadWriter):
 class JSONRPC2Connection:
     def __init__(self, conn=None):
         self.conn = conn
+        self.running = True
         self._msg_buffer = OrderedDict()
 
     def _read_header_content_length(self, line):
@@ -127,8 +128,11 @@ class JSONRPC2Connection:
         self._send(body)
         return self.read_message(id)
 
+    def stop(self):
+        self.running = False
+
     def listen(self):
-        while True:
+        while self.running:
             try:
                 request = self.read_message()
             except EOFError:
