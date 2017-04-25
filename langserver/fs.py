@@ -37,7 +37,7 @@ class FileSystem(ABC):
                 dirs.append(os.path.join(top, e.name))
             else:
                 files.append(os.path.join(top, e.name))
-        yield top, dirs, files
+        yield from files
         for d in dirs:
             yield from self.walk(d)
 
@@ -61,13 +61,17 @@ class RemoteFileSystem(FileSystem):
 
     @lru_cache(maxsize=128)
     def open(self, path):
-        resp = self.conn.send_request("fs/readFile", path)
-        if resp.get("error") is not None:
+        resp = self.conn.send_request(
+            "textDocument/xcontent", {"textDocument": {
+                "uri": "file://" + path
+            }})
+        if "error" in resp:
             raise FileException(resp["error"])
-        return base64.b64decode(resp["result"]).decode("utf-8")
+        return resp["result"]["text"]
 
     @lru_cache(maxsize=128)
     def listdir(self, path):
+        # TODO(keegan) Use workspace/xfiles + cache
         resp = self.conn.send_request("fs/readDir", path)
         if resp.get("error") is not None:
             raise FileException(resp["error"])
@@ -75,3 +79,16 @@ class RemoteFileSystem(FileSystem):
         for e in resp["result"]:
             entries.append(Entry(e["name"], e["dir"], e["size"]))
         return entries
+
+    def walk(self, path):
+        resp = self.conn.send_request("workspace/xfiles",
+                                      {"base": "file://" + path})
+        if "error" in resp:
+            raise FileException(resp["error"])
+        for doc in resp["result"]:
+            uri = doc["uri"]
+            if not uri.startswith("file://"):
+                yield uri
+            else:
+                _, path = uri.split("file://", 1)
+                yield path

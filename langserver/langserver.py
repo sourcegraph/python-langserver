@@ -88,13 +88,12 @@ class LangServer(JSONRPC2Connection):
         if self.symbol_cache:
             return self.symbol_cache
         symbols = []
-        for root, dirs, files in self.fs.walk(self.root_path):
-            for f in files:
-                name, ext = filepath.splitext(f)
-                if ext == ".py":
-                    src = self.fs.open(f)
-                    s = SymbolEmitter(src, file=f)
-                    symbols += s.symbols()
+        for f in self.fs.walk(self.root_path):
+            name, ext = filepath.splitext(f)
+            if ext == ".py":
+                src = self.fs.open(f)
+                s = SymbolEmitter(src, file=f)
+                symbols += s.symbols()
         self.symbol_cache = symbols
         return symbols
 
@@ -170,6 +169,7 @@ class LangServer(JSONRPC2Connection):
             self.write_error(
                 request["id"], code=e.code, message=e.message, data=e.data)
         except Exception as e:
+            self.log.warning("handler for %s failed", request, exc_info=True)
             self.write_error(
                 request["id"],
                 code=-32603,
