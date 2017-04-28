@@ -1,3 +1,2 @@
-astroid==1.5.2
 -e git://github.com/sourcegraph/jedi.git@877d84a1c5fbb10e7ac9ed81c2c232020e047fce#egg=jedi
 

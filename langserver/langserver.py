@@ -11,7 +11,7 @@ from typing import List
 
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .symbols import SymbolEmitter
+from .symbols import extract_symbols
 
 
 class Module:
@@ -89,11 +89,10 @@ class LangServer(JSONRPC2Connection):
             return self.symbol_cache
         symbols = []
         for f in self.fs.walk(self.root_path):
-            name, ext = filepath.splitext(f)
-            if ext == ".py":
-                src = self.fs.open(f)
-                s = SymbolEmitter(src, file=f)
-                symbols += s.symbols()
+            if not f.endswith(".py"):
+                continue
+            src = self.fs.open(f)
+            symbols.extend(extract_symbols(src, f))
         self.symbol_cache = symbols
         return symbols
 
@@ -333,9 +332,7 @@ class LangServer(JSONRPC2Connection):
         params = request["params"]
         path = path_from_uri(params["textDocument"]["uri"])
         source = self.fs.open(path)
-        emitter = SymbolEmitter(source, file=path)
-        symbols = emitter.symbols()
-        return [s.json_object() for s in symbols]
+        return [s.json_object() for s in extract_symbols(source, path)]
 
     def serve_exit(self, request):
         self.stop()

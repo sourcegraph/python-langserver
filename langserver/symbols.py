@@ -1,6 +1,4 @@
-import astroid as ast
-import json
-from astroid.exceptions import AstroidError
+import ast
 from enum import Enum
 
 
@@ -82,64 +80,73 @@ class Symbol:
         return d
 
 
-class SymbolEmitter:
-    """
-    SymbolEmitter provides methods for generating symbol information for selected
-    exported symbols in a given Python source file.
-    """
+def extract_symbols(source, path):
+    """symbols is a generator yielding global symbols for source"""
+    try:
+        tree = ast.parse(source)
+    except SyntaxError:
+        return
 
-    def __init__(self, source, file=None):
-        self.source = source
-        self.file = file
+    s = SymbolVisitor()
+    for j in s.visit(tree):
+        if j.name.startswith('_') or (j.container is not None and
+                                      j.container.startswith('_')):
+            continue
+        j.file = path
+        yield j
 
-    def symbols(self):
-        try:
-            t = ast.parse(self.source)
-        except AstroidError:
-            # If we fail to parse the AST, ignore the file
-            return []
-        return list(self._visit(t))
 
-    def _visit(self, node):
-        s = self.node_to_symbol(node)
-        if s is not None:
-            yield s
-        for c in node.get_children():
-            yield from self._visit(c)
+class SymbolVisitor:
+    def visit_Module(self, node, container):
+        # Modules is our global scope. Just visit all the children
+        yield from self.generic_visit(node)
 
-    def node_to_symbol(self, node):
-        # Classes
-        if isinstance(node, ast.scoped_nodes.ClassDef):
-            return Symbol(
-                node.name,
-                SymbolKind.Class,
+    def visit_ClassDef(self, node, container):
+        yield Symbol(node.name, SymbolKind.Class, node.lineno, node.col_offset)
+
+        # Visit all child symbols, but with container set to the class
+        yield from self.generic_visit(node, container=node.name)
+
+    def visit_FunctionDef(self, node, container):
+        yield Symbol(
+            node.name,
+            SymbolKind.Function if container is None else SymbolKind.Method,
+            node.lineno,
+            node.col_offset,
+            container=container)
+
+    def visit_Assign(self, assign_node, container):
+        for node in assign_node.targets:
+            if not hasattr(node, "id"):
+                continue
+            yield Symbol(
+                node.id,
+                SymbolKind.Variable,
                 node.lineno,
                 node.col_offset,
-                file=self.file)
-        # Functions/Methods
-        elif isinstance(node, ast.scoped_nodes.FunctionDef):
-            if node.is_method():
-                return Symbol(
-                    node.name,
-                    SymbolKind.Method,
-                    node.lineno,
-                    node.col_offset,
-                    container=node.parent.name,
-                    file=self.file)
-            else:
-                return Symbol(
-                    node.name,
-                    SymbolKind.Function,
-                    node.lineno,
-                    node.col_offset,
-                    file=self.file)
-        # Variables
-        elif isinstance(node, ast.node_classes.AssignName):
-            # Global variables
-            if isinstance(node.scope(), ast.scoped_nodes.Module):
-                return Symbol(
-                    node.name,
-                    SymbolKind.Variable,
-                    node.lineno,
-                    node.col_offset,
-                    file=self.file)
+                container=container)
+
+    def visit_If(self, node, container):
+        # If is often used provide different implementations for the same var. To avoid duplicate names, we only visit the true body.
+        for child in node.body:
+            yield from self.visit(child, container)
+
+    # Based on ast.NodeVisitor.visit
+    def visit(self, node, container=None):
+        # Two changes from ast.NodeVisitor.visit:
+        # * Do not fallback to generic_visit (we only care about top-level)
+        # * container optional argument
+        method = 'visit_' + node.__class__.__name__
+        visitor = getattr(self, method, None)
+        if visitor is not None:
+            yield from visitor(node, container)
+
+    # Based on ast.NodeVisitor.generic_visit
+    def generic_visit(self, node, container=None):
+        for field, value in ast.iter_fields(node):
+            if isinstance(value, list):
+                for item in value:
+                    if isinstance(item, ast.AST):
+                        yield from self.visit(item, container)
+            elif isinstance(value, ast.AST):
+                yield from self.visit(value, container)
