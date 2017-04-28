@@ -1,8 +1,11 @@
 #!/usr/local/bin/python3
 
+import os.path
 import sys
-import time
-import traceback
-import langserver.langserver
 
-langserver.langserver.main()
+sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
+
+from langserver.langserver import main
+
+if __name__ == '__main__':
+    main()
