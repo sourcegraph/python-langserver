@@ -176,7 +176,8 @@ class LangServer(JSONRPC2Connection):
                 data={
                     "traceback": traceback.format_exc(),
                 })
-            self.log.warning("error handling request %s", request, exc_info=True)
+            self.log.warning(
+                "error handling request %s", request, exc_info=True)
         else:
             self.write_response(request["id"], resp)
 
@@ -320,14 +321,12 @@ class LangServer(JSONRPC2Connection):
     def serve_symbols(self, request):
         params = request["params"]
 
-        symbols = self.workspace_symbols()
-        q, limit = params.get("query"), params.get("limit")
-        if q:
-            symbols.sort(reverse=True, key=lambda s: s.score(q))
-        if limit and len(symbols) > limit:
-            symbols = symbols[:limit]
+        q, limit = params.get("query"), params.get("limit", 1000)
+        symbols = ((sym.score(q), sym) for sym in self.workspace_symbols())
+        symbols = ((score, sym) for (score, sym) in symbols if score >= 0)
+        symbols = sorted(symbols, reverse=True, key=lambda x: x[0])[:limit]
 
-        return [s.json_object() for s in symbols]
+        return [s.json_object() for (_, s) in symbols]
 
     def serve_documentSymbols(self, request):
         params = request["params"]

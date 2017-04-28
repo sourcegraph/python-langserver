@@ -37,6 +37,17 @@ class Symbol:
         """Score a symbol based on how well it matches a query.
         Useful for sorting."""
         score = 0
+        if self.kind == SymbolKind.Class:
+            score += 1
+        if self.kind != SymbolKind.Variable:
+            score += 1
+        if self.container is None:
+            score += 1
+        if self.file and 'test' not in self.file:
+            score += 5
+        if query == "":
+            return score
+        min_score = score
         l_name, l_query = self.name.lower(), query.lower()
         if query == self.name:
             score += 10
@@ -55,6 +66,8 @@ class Symbol:
                 score += 10
         if self.file and self.file.lower().startswith(l_query):
             score += 1
+        if score <= min_score:
+            score = -1
         return score
 
     def json_object(self):
