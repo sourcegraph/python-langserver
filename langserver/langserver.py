@@ -176,6 +176,7 @@ class LangServer(JSONRPC2Connection):
                 data={
                     "traceback": traceback.format_exc(),
                 })
+            self.log.warning("error handling request %s", request, exc_info=True)
         else:
             self.write_response(request["id"], resp)
 
