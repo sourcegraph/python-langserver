@@ -61,10 +61,11 @@ class RemoteFileSystem(FileSystem):
 
     @lru_cache(maxsize=128)
     def open(self, path):
-        resp = self.conn.send_request(
-            "textDocument/xcontent", {"textDocument": {
+        resp = self.conn.send_request("textDocument/xcontent", {
+            "textDocument": {
                 "uri": "file://" + path
-            }})
+            }
+        })
         if "error" in resp:
             raise FileException(resp["error"])
         return resp["result"]["text"]
@@ -87,8 +88,7 @@ class RemoteFileSystem(FileSystem):
             raise FileException(resp["error"])
         for doc in resp["result"]:
             uri = doc["uri"]
-            if not uri.startswith("file://"):
-                yield uri
+            if uri.startswith("file://"):
+                yield uri[7:]
             else:
-                _, path = uri.split("file://", 1)
-                yield path
+                yield uri

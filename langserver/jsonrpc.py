@@ -3,7 +3,9 @@ import json
 import random
 import uuid
 import logging
-from collections import OrderedDict
+from collections import deque
+
+log = logging.getLogger(__name__)
 
 
 class JSONRPC2ProtocolError(Exception):
@@ -42,9 +44,8 @@ class TCPReadWriter(ReadWriter):
 class JSONRPC2Connection:
     def __init__(self, conn=None):
         self.conn = conn
-        self.running = True
-        self._msg_buffer = OrderedDict()
-        self.log = logging.getLogger(__name__)
+        self._msg_buffer = deque()
+        self._next_id = 1
 
     def _read_header_content_length(self, line):
         if len(line) < 2 or line[-2:] != "\r\n":
@@ -67,23 +68,29 @@ class JSONRPC2Connection:
         while line != "\r\n":
             line = self.conn.readline()
         body = self.conn.read(length)
-        self.log.debug("RECV %s", body)
-        obj = json.loads(body)
-        # If the next message doesn't have an id, just give it a random key.
-        self._msg_buffer[obj.get("id") or uuid.uuid4()] = obj
+        log.debug("RECV %s", body)
+        return json.loads(body)
 
-    def read_message(self, id=None):
+    def read_message(self, want=None):
         """Read a JSON RPC message sent over the current connection. If
         id is None, the next available message is returned."""
-        if id is not None:
-            while self._msg_buffer.get(id) is None:
-                self._receive()
-            return self._msg_buffer.pop(id)
-        else:
-            while len(self._msg_buffer) == 0:
-                self._receive()
-            _, msg = self._msg_buffer.popitem(last=False)
+        if want is None:
+            if self._msg_buffer:
+                return self._msg_buffer.popleft()
+            return self._receive()
+
+        # First check if our buffer contains something we want.
+        msg = deque_find_and_pop(self._msg_buffer, want)
+        if msg:
             return msg
+
+        # We need to keep receiving until we find something we want.
+        # Things we don't want are put into the buffer for future callers.
+        while True:
+            msg = self._receive()
+            if want(msg):
+                return msg
+            self._msg_buffer.append(msg)
 
     def _send(self, body):
         body = json.dumps(body, separators=(",", ":"))
@@ -93,12 +100,12 @@ class JSONRPC2Connection:
             "Content-Type: application/vscode-jsonrpc; charset=utf8\r\n\r\n"
             "{}".format(content_length, body))
         self.conn.write(response)
-        self.log.debug("SEND %s", body)
+        log.debug("SEND %s", body)
 
-    def write_response(self, id, result):
+    def write_response(self, rid, result):
         body = {
             "jsonrpc": "2.0",
-            "id": id,
+            "id": rid,
             "result": result,
         }
         self._send(body)
@@ -118,23 +125,27 @@ class JSONRPC2Connection:
         self._send(body)
 
     def send_request(self, method: str, params):
-        id = random.randint(0, 2**16)  # TODO(renfred) guarantee uniqueness.
+        rid = self._next_id
+        self._next_id += 1
         body = {
             "jsonrpc": "2.0",
-            "id": id,
+            "id": rid,
             "method": method,
             "params": params,
         }
         self._send(body)
-        return self.read_message(id)
+        return self.read_message(want=lambda msg: msg.get("id") == rid)
 
-    def stop(self):
-        self.running = False
 
-    def listen(self):
-        while self.running:
-            try:
-                request = self.read_message()
-            except EOFError:
-                break
-            self.handle(request)
+def deque_find_and_pop(d, f):
+    idx = None
+    for i, v in enumerate(d):
+        if f(v):
+            idx = i
+            break
+    if idx is None:
+        return None
+    d.rotate(-idx)
+    v = d.popleft()
+    d.rotate(idx)
+    return v

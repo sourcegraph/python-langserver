@@ -13,6 +13,8 @@ from .fs import LocalFileSystem, RemoteFileSystem
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .symbols import extract_symbols
 
+log = logging.getLogger(__name__)
+
 
 class Module:
     def __init__(self, name, path, is_package=False):
@@ -41,8 +43,9 @@ class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
 
 class LangserverTCPTransport(socketserver.StreamRequestHandler):
     def handle(self):
-        s = LangServer(conn=TCPReadWriter(self.rfile, self.wfile))
-        s.listen()
+        conn = JSONRPC2Connection(TCPReadWriter(self.rfile, self.wfile))
+        s = LangServer(conn)
+        s.run()
 
 
 def path_from_uri(uri):
@@ -52,12 +55,21 @@ def path_from_uri(uri):
     return path
 
 
-class LangServer(JSONRPC2Connection):
-    def __init__(self, conn=None):
-        super().__init__(conn=conn)
+class LangServer:
+    def __init__(self, conn):
+        self.conn = conn
+        self.running = True
         self.root_path = None
+        self.fs = None
         self.symbol_cache = None
-        self.fs = None  # Set after initialize request
+
+    def run(self):
+        while self.running:
+            try:
+                request = self.conn.read_message()
+            except EOFError:
+                break
+            self.handle(request)
 
     """Return a set of all python modules found within a given path."""
 
@@ -139,8 +151,7 @@ class LangServer(JSONRPC2Connection):
         return jedi.api.Script(*args, **kwargs)
 
     def handle(self, request):
-        self.log.info("REQUEST %s %s", request.get("id"),
-                      request.get("method"))
+        log.info("REQUEST %s %s", request.get("id"), request.get("method"))
 
         handler = {
             "initialize": self.serve_initialize,
@@ -158,28 +169,27 @@ class LangServer(JSONRPC2Connection):
             try:
                 handler(request)
             except Exception as e:
-                self.log.warning(
+                log.warning(
                     "error handling notification %s", request, exc_info=True)
             return
 
         try:
             resp = handler(request)
         except JSONRPC2Error as e:
-            self.write_error(
+            self.conn.write_error(
                 request["id"], code=e.code, message=e.message, data=e.data)
         except Exception as e:
-            self.log.warning("handler for %s failed", request, exc_info=True)
-            self.write_error(
+            log.warning("handler for %s failed", request, exc_info=True)
+            self.conn.write_error(
                 request["id"],
                 code=-32603,
                 message=str(e),
                 data={
                     "traceback": traceback.format_exc(),
                 })
-            self.log.warning(
-                "error handling request %s", request, exc_info=True)
+            log.warning("error handling request %s", request, exc_info=True)
         else:
-            self.write_response(request["id"], resp)
+            self.conn.write_response(request["id"], resp)
 
     def serve_initialize(self, request):
         params = request["params"]
@@ -188,7 +198,7 @@ class LangServer(JSONRPC2Connection):
         caps = params.get("capabilities", {})
         if caps.get("xcontentProvider") and caps.get("xfilesProvider"):
             # The client supports a remote fs
-            self.fs = RemoteFileSystem(self)
+            self.fs = RemoteFileSystem(self.conn)
         else:
             self.fs = LocalFileSystem()
 
@@ -221,8 +231,7 @@ class LangServer(JSONRPC2Connection):
         except Exception as e:
             # TODO return these errors using JSONRPC properly. Doing it this way
             # initially for debugging purposes.
-            self.log.error(
-                "Failed goto_definitions for %s", request, exc_info=True)
+            log.error("Failed goto_definitions for %s", request, exc_info=True)
         d = defs[0] if len(defs) > 0 else None
 
         # TODO(renfred): better failure mode
@@ -335,7 +344,7 @@ class LangServer(JSONRPC2Connection):
         return [s.json_object() for s in extract_symbols(source, path)]
 
     def serve_exit(self, request):
-        self.stop()
+        self.running = False
 
     def serve_default(self, request):
         raise JSONRPC2Error(
@@ -364,7 +373,7 @@ def main():
     if args.mode == "stdio":
         logging.info("Reading on stdin, writing on stdout")
         s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
-        s.listen()
+        s.run()
     elif args.mode == "tcp":
         host, addr = "0.0.0.0", args.addr
         logging.info("Accepting TCP connections on %s:%s", host, addr)
