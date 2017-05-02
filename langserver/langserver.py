@@ -2,6 +2,8 @@ import sys
 import jedi
 import argparse
 import logging
+import itertools
+import multiprocessing
 import socket
 import socketserver
 import traceback
@@ -99,10 +101,11 @@ class LangServer:
     def workspace_symbols(self):
         if self.symbol_cache:
             return self.symbol_cache
-        symbols = []
         py_paths = (path for path in self.fs.walk(self.root_path) if path.endswith(".py"))
-        for path, src in self.fs.batch_open(py_paths):
-            symbols.extend(extract_symbols(src, path))
+        py_srces = self.fs.batch_open(py_paths)
+        with multiprocessing.Pool() as p:
+            symbols_chunks = p.imap_unordered(extract_symbols_star, py_srces)
+            symbols = list(itertools.chain.from_iterable(symbols_chunks))
         self.symbol_cache = symbols
         return symbols
 
@@ -355,6 +358,12 @@ class JSONRPC2Error(Exception):
         self.code = code
         self.message = message
         self.data = data
+
+
+# This exists purely for passing into imap
+def extract_symbols_star(args):
+    path, src = args
+    return list(extract_symbols(src, path))
 
 
 def main():
