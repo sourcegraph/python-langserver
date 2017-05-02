@@ -141,7 +141,7 @@ class JSONRPC2Connection:
     def send_request_batch(self, requests):
         """Pipelines requests and returns responses.
 
-        The responses is a generator were the nth response corresponds with the
+        The responses is a generator where the nth response corresponds with the
         nth request. Users must read the generator until the end, otherwise you
         will leak a thread."""
 
