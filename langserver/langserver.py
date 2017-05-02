@@ -104,7 +104,7 @@ class LangServer:
         py_paths = (path for path in self.fs.walk(self.root_path) if path.endswith(".py"))
         py_srces = self.fs.batch_open(py_paths)
         with multiprocessing.Pool() as p:
-            symbols_chunks = p.imap_unordered(extract_symbols_star, py_srces)
+            symbols_chunks = p.imap_unordered(extract_symbols_star, py_srces, chunksize=10)
             symbols = list(itertools.chain.from_iterable(symbols_chunks))
         self.symbol_cache = symbols
         return symbols
