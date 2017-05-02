@@ -100,11 +100,9 @@ class LangServer:
         if self.symbol_cache:
             return self.symbol_cache
         symbols = []
-        for f in self.fs.walk(self.root_path):
-            if not f.endswith(".py"):
-                continue
-            src = self.fs.open(f)
-            symbols.extend(extract_symbols(src, f))
+        py_paths = (path for path in self.fs.walk(self.root_path) if path.endswith(".py"))
+        for path, src in self.fs.batch_open(py_paths):
+            symbols.extend(extract_symbols(src, path))
         self.symbol_cache = symbols
         return symbols
 

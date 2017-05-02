@@ -29,6 +29,10 @@ class FileSystem(ABC):
     def listdir(path: str) -> List[Entry]:
         pass
 
+    def batch_open(self, paths):
+        for path in paths:
+            yield (path, self.open(path))
+
     def walk(self, top: str):
         dir = self.listdir(top)
         files, dirs = [], []
