@@ -96,3 +96,19 @@ class RemoteFileSystem(FileSystem):
                 yield uri[7:]
             else:
                 yield uri
+
+    def batch_open(self, paths):
+        # We need to read the iterator paths twice, so convert to list
+        paths = list(paths)
+        responses = self.conn.send_request_batch(("textDocument/xcontent", {
+            "textDocument": {
+                "uri": "file://" + path
+            }
+        }) for path in paths)
+        for path, resp in zip(paths, responses):
+            if "error" in resp:
+                # Consume rest of generator to ensure resources are shutdown
+                for _ in responses:
+                    pass
+                raise FileException(resp["error"])
+            yield (path, resp["result"]["text"])
