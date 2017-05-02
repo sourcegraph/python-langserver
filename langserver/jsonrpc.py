@@ -3,6 +3,8 @@ import json
 import random
 import uuid
 import logging
+import queue
+import threading
 from collections import deque
 
 log = logging.getLogger(__name__)
@@ -135,6 +137,41 @@ class JSONRPC2Connection:
         }
         self._send(body)
         return self.read_message(want=lambda msg: msg.get("id") == rid)
+
+    def send_request_batch(self, requests):
+        """Pipelines requests and returns responses.
+
+        The responses is a generator where the nth response corresponds with the
+        nth request. Users must read the generator until the end, otherwise you
+        will leak a thread."""
+
+        # We communicate the request ids using a thread safe queue.
+        # It also allows us to bound the number of concurrent requests.
+        q = queue.Queue(100)
+
+        def send():
+            for method, params in requests:
+                rid = self._next_id
+                self._next_id += 1
+                q.put(rid)
+                body = {
+                    "jsonrpc": "2.0",
+                    "id": rid,
+                    "method": method,
+                    "params": params,
+                }
+                self._send(body)
+
+            # Sentinal value to indicate we are done
+            q.put(None)
+
+        threading.Thread(target=send).start()
+
+        while True:
+            rid = q.get()
+            if rid is None:
+                break
+            yield self.read_message(want=lambda msg: msg.get("id") == rid)
 
 
 def deque_find_and_pop(d, f):
