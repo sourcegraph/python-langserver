@@ -134,7 +134,10 @@ class LangServer:
                 raise ImportError('Module "{}" not found in {}', string, dir)
 
         def list_modules() -> List[str]:
-            modules = [f for f in self.fs.walk(self.root_path) if f.lower().endswith(".py")]
+            modules = [
+                f for f in self.fs.walk(self.root_path)
+                if f.lower().endswith(".py")
+            ]
             return modules
 
         def load_source(path) -> str:
@@ -225,33 +228,85 @@ class LangServer:
             line=pos["line"] + 1,
             column=pos["character"])
 
-        defs, error = [], None
         try:
             defs = script.goto_definitions()
         except Exception as e:
             # TODO return these errors using JSONRPC properly. Doing it this way
             # initially for debugging purposes.
             log.error("Failed goto_definitions for %s", request, exc_info=True)
-        d = defs[0] if len(defs) > 0 else None
+            return {}
 
-        # TODO(renfred): better failure mode
-        if d is None:
-            value = error or "Definition Not Found"
-            return {
-                "contents": [{
-                    "language": "markdown",
-                    "value": value
-                }],
-            }
+        # The code from this point onwards is modifed from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
-        hover_info = d.docstring() or d.description
-        return {
-            # TODO(renfred): convert reStructuredText docstrings to markdown.
-            "contents": [{
-                "language": "markdown",
-                "value": hover_info
-            }],
-        }
+        def generate_signature(completion):
+            if completion.type in ['module'
+                                   ] or not hasattr(completion, 'params'):
+                return ''
+            return '%s(%s)' % (completion.name,
+                               ', '.join(p.description
+                                         for p in completion.params if p))
+
+        def get_definition_type(definition):
+            is_built_in = definition.in_builtin_module
+            try:
+                if definition.type in ['statement'
+                                       ] and definition.name.isupper():
+                    return 'constant'
+                basic_types = {
+                    'module': 'import',
+                    'instance': 'variable',
+                    'statement': 'value',
+                    'param': 'variable',
+                }
+                return basic_types.get(definition.type, definition.type)
+            except Exception:
+                return 'builtin'
+
+        results = []
+        for definition in defs:
+            signature = definition.name
+            description = None
+            if definition.type in ('class', 'function'):
+                signature = generate_signature(definition)
+                try:
+                    description = definition.docstring(raw=True).strip()
+                except Exception:
+                    description = ''
+                if not description and not hasattr(definition,
+                                                   'get_line_code'):
+                    # jedi returns an empty string for compiled objects
+                    description = definition.docstring().strip()
+            if definition.type == 'module':
+                signature = definition.full_name
+                try:
+                    description = definition.docstring(raw=True).strip()
+                except Exception:
+                    description = ''
+                if not description and hasattr(definition, 'get_line_code'):
+                    # jedi returns an empty string for compiled objects
+                    description = definition.docstring().strip()
+
+            def_type = get_definition_type(definition)
+            if def_type in ('function', 'method'):
+                signature = 'def ' + signature
+            elif def_type == 'class':
+                signature = 'class ' + signature
+            else:
+                # TODO(keegan) vscode python uses the current word if definition.name is empty
+                signature = definition.name
+
+            # TODO(keegan) implement the rest of https://sourcegraph.com/github.com/DonJayamanne/pythonVSCode/-/blob/src/client/providers/hoverProvider.ts#L34
+            results.append({
+                "language": "python",
+                "value": signature,
+            })
+            if description:
+                results.append(description)
+
+        if results:
+            return {"contents": results}
+        else:
+            return {}
 
     def serve_definition(self, request):
         params = request["params"]
@@ -267,14 +322,11 @@ class LangServer:
             column=pos["character"])
 
         defs = script.goto_definitions()
-        assigns = script.goto_assignments()
-        d = None
-        if len(defs) > 0:
-            d = defs[0]
-        elif len(assigns) > 0:
-            # TODO(renfred): figure out if this works in all cases.
-            d = assigns[0]
-        if d is None: return {}
+        if len(defs) == 0:
+            defs = script.goto_assignments()
+        if len(defs) == 0:
+            return {}
+        d = defs[0]
 
         return {
             # TODO(renfred) determine why d.module_path is empty.
