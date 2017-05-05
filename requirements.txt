@@ -1,2 +1,2 @@
--e git://github.com/sourcegraph/jedi.git@877d84a1c5fbb10e7ac9ed81c2c232020e047fce#egg=jedi
+-e git://github.com/keegancsmith/jedi.git@5ddbb290b458ff2e0d4da198d32c9a4f4e1e6733#egg=jedi
 

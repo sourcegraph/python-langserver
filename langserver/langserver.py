@@ -115,7 +115,7 @@ class LangServer:
         """Return an initialized Jedi API Script object."""
         path = kwargs.get("path")
 
-        def find_module_remote(string, dir=None):
+        def find_module_remote(string, dir=None, fullname=None):
             """A swap-in replacement for Jedi's find module function that uses the
             remote fs to resolve module imports."""
             if type(dir) is list:  # TODO(renfred): handle list input for paths.
@@ -134,12 +134,7 @@ class LangServer:
                 raise ImportError('Module "{}" not found in {}', string, dir)
 
         def list_modules() -> List[str]:
-            modules = []
-            for root, _, files in self.fs.walk(self.root_path):
-                for f in files:
-                    name, ext = filepath.splitext(f)
-                    if ext == ".py":
-                        modules.append(filepath.join(root, f))
+            modules = [f for f in self.fs.walk(self.root_path) if f.lower().endswith(".py")]
             return modules
 
         def load_source(path) -> str:
@@ -156,6 +151,7 @@ class LangServer:
     def handle(self, request):
         log.info("REQUEST %s %s", request.get("id"), request.get("method"))
 
+        noop = lambda *a: None
         handler = {
             "initialize": self.serve_initialize,
             "textDocument/hover": self.serve_hover,
@@ -163,7 +159,8 @@ class LangServer:
             "textDocument/references": self.serve_references,
             "textDocument/documentSymbol": self.serve_documentSymbols,
             "workspace/symbol": self.serve_symbols,
-            "shutdown": lambda *a: None,  # Shutdown is a noop
+            "$/cancelRequest": noop,
+            "shutdown": noop,
             "exit": self.serve_exit,
         }.get(request["method"], self.serve_default)
 
