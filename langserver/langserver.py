@@ -13,7 +13,7 @@ from typing import List
 
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .symbols import extract_symbols
+from .symbols import extract_symbols, extract_exported_symbols
 
 log = logging.getLogger(__name__)
 
@@ -101,10 +101,12 @@ class LangServer:
     def workspace_symbols(self):
         if self.symbol_cache:
             return self.symbol_cache
-        py_paths = (path for path in self.fs.walk(self.root_path) if path.endswith(".py"))
+        py_paths = (path for path in self.fs.walk(self.root_path)
+                    if path.endswith(".py"))
         py_srces = self.fs.batch_open(py_paths)
         with multiprocessing.Pool() as p:
-            symbols_chunks = p.imap_unordered(extract_symbols_star, py_srces, chunksize=10)
+            symbols_chunks = p.imap_unordered(
+                extract_exported_symbols_star, py_srces, chunksize=10)
             symbols = list(itertools.chain.from_iterable(symbols_chunks))
         self.symbol_cache = symbols
         return symbols
@@ -361,9 +363,9 @@ class JSONRPC2Error(Exception):
 
 
 # This exists purely for passing into imap
-def extract_symbols_star(args):
+def extract_exported_symbols_star(args):
     path, src = args
-    return list(extract_symbols(src, path))
+    return list(extract_exported_symbols(src, path))
 
 
 def main():
