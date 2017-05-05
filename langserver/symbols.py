@@ -94,7 +94,7 @@ class Symbol:
 
 
 def extract_symbols(source, path):
-    """symbols is a generator yielding global symbols for source"""
+    """extract_symbols is a generator yielding symbols for source"""
     try:
         tree = ast.parse(source)
     except SyntaxError:
@@ -102,11 +102,13 @@ def extract_symbols(source, path):
 
     s = SymbolVisitor()
     for j in s.visit(tree):
-        if j.name.startswith('_') or (j.container is not None and
-                                      j.container.startswith('_')):
-            continue
         j.file = path
         yield j
+
+
+def extract_exported_symbols(source, path):
+    is_exported = lambda s: not (s.name.startswith('_') or (s.container is not None and s.container.startswith('_')))
+    return filter(is_exported, extract_symbols(source, path))
 
 
 class SymbolVisitor:
