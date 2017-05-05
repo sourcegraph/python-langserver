@@ -114,10 +114,16 @@ class LangServer:
     def new_script(self, *args, **kwargs):
         """Return an initialized Jedi API Script object."""
         path = kwargs.get("path")
+        trace = False
+        if 'trace' in kwargs:
+            trace = True
+            del kwargs['trace']
 
         def find_module_remote(string, dir=None, fullname=None):
             """A swap-in replacement for Jedi's find module function that uses the
             remote fs to resolve module imports."""
+            if trace:
+                print("find_module_remote", string, dir, fullname)
             if type(dir) is list:  # TODO(renfred): handle list input for paths.
                 dir = dir[0]
             dir = dir or filepath.dirname(path)
@@ -134,6 +140,8 @@ class LangServer:
                 raise ImportError('Module "{}" not found in {}', string, dir)
 
         def list_modules() -> List[str]:
+            if trace:
+                print("list_modules")
             modules = [
                 f for f in self.fs.walk(self.root_path)
                 if f.lower().endswith(".py")
@@ -141,6 +149,8 @@ class LangServer:
             return modules
 
         def load_source(path) -> str:
+            if trace:
+                print("load_source", path)
             return self.fs.open(path)
 
         # TODO(keegan) It shouldn't matter if we are using a remote fs or not. Consider other ways to hook into the import system.
