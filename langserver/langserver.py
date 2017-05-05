@@ -331,7 +331,7 @@ class LangServer:
     def serve_symbols(self, request):
         params = request["params"]
 
-        q, limit = params.get("query"), params.get("limit", 1000)
+        q, limit = params.get("query"), params.get("limit", 50)
         symbols = ((sym.score(q), sym) for sym in self.workspace_symbols())
         symbols = ((score, sym) for (score, sym) in symbols if score >= 0)
         symbols = sorted(symbols, reverse=True, key=lambda x: x[0])[:limit]
