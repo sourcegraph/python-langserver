@@ -332,27 +332,25 @@ class LangServer:
             column=pos["character"])
 
         defs = script.goto_definitions()
-        if len(defs) == 0:
-            defs = script.goto_assignments()
-        if len(defs) == 0:
-            return {}
-        d = defs[0]
-
-        if d.line is None or d.column is None:
-            # This is probably part of the stdlib, which we do not support yet.
-            return {}
-        start = {
-            "line": d.line - 1,
-            "column": d.column - 1,
-        }
-        return {
-            # TODO(renfred) determine why d.module_path is empty.
-            "uri": "file://" + (d.module_path or path),
-            "range": {
-                "start": start,
-                "end": start,
-            },
-        }
+        locs = []
+        for d in defs:
+            if not d.is_definition() or d.line is None or d.column is None:
+                continue
+            locs.append({
+                # TODO(renfred) determine why d.module_path is empty.
+                "uri": "file://" + (d.module_path or path),
+                "range": {
+                    "start": {
+                        "line": d.line - 1,
+                        "character": d.column,
+                    },
+                    "end": {
+                        "line": d.line - 1,
+                        "character": d.column + len(d.name),
+                    },
+                },
+            })
+        return locs
 
     def serve_references(self, request):
         params = request["params"]
