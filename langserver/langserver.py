@@ -338,19 +338,20 @@ class LangServer:
             return {}
         d = defs[0]
 
+        if d.line is None or d.column is None:
+            # This is probably part of the stdlib, which we do not support yet.
+            return {}
+        start = {
+            "line": d.line - 1,
+            "column": d.column - 1,
+        }
         return {
             # TODO(renfred) determine why d.module_path is empty.
             "uri": "file://" + (d.module_path or path),
             "range": {
-                "start": {
-                    "line": d.line - 1,
-                    "character": d.column,
-                },
-                "end": {
-                    "line": d.line - 1,
-                    "character": d.column,
-                }
-            }
+                "start": start,
+                "end": start,
+            },
         }
 
     def serve_references(self, request):
