@@ -1,4 +1,7 @@
 import ast
+import itertools
+import multiprocessing
+
 from enum import Enum
 
 
@@ -109,6 +112,23 @@ def extract_symbols(source, path):
 def extract_exported_symbols(source, path):
     is_exported = lambda s: not (s.name.startswith('_') or (s.container is not None and s.container.startswith('_')))
     return filter(is_exported, extract_symbols(source, path))
+
+
+def workspace_symbols(fs, root_path):
+    "returns a list of all exported symbols under root_path in fs."
+    py_paths = (path for path in fs.walk(root_path) if path.endswith(".py"))
+    py_srces = fs.batch_open(py_paths)
+    with multiprocessing.Pool() as p:
+        symbols_chunks = p.imap_unordered(
+            _imap_extract_exported_symbols, py_srces, chunksize=10)
+        symbols = list(itertools.chain.from_iterable(symbols_chunks))
+    return symbols
+
+
+# This exists purely for passing into imap
+def _imap_extract_exported_symbols(args):
+    path, src = args
+    return list(extract_exported_symbols(src, path))
 
 
 class SymbolVisitor:

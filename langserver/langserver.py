@@ -1,53 +1,13 @@
-import sys
-import jedi
-import argparse
 import logging
-import itertools
-import multiprocessing
-import socket
 import socketserver
-import traceback
-from os import path as filepath
-from abc import ABC, abstractmethod
-from typing import List
+import sys
 
 from .fs import LocalFileSystem, RemoteFileSystem
+from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .symbols import extract_symbols, extract_exported_symbols
+from .symbols import extract_symbols, workspace_symbols
 
 log = logging.getLogger(__name__)
-
-
-class Module:
-    def __init__(self, name, path, is_package=False):
-        self.name = name
-        self.path = path
-        self.is_package = is_package
-
-    def __repr__(self):
-        return "PythonModule({}, {})".format(self.name, self.path)
-
-
-class DummyFile:
-    def __init__(self, contents):
-        self.contents = contents
-
-    def read(self):
-        return self.contents
-
-    def close(self):
-        pass
-
-
-class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
-    pass
-
-
-class LangserverTCPTransport(socketserver.StreamRequestHandler):
-    def handle(self):
-        conn = JSONRPC2Connection(TCPReadWriter(self.rfile, self.wfile))
-        s = LangServer(conn)
-        s.run()
 
 
 def path_from_uri(uri):
@@ -63,7 +23,7 @@ class LangServer:
         self.running = True
         self.root_path = None
         self.fs = None
-        self.symbol_cache = None
+        self.all_symbols = None
 
     def run(self):
         while self.running:
@@ -72,94 +32,6 @@ class LangServer:
             except EOFError:
                 break
             self.handle(request)
-
-    """Return a set of all python modules found within a given path."""
-
-    def workspace_modules(self, path) -> List[Module]:
-        dir = self.fs.listdir(path)
-        modules = []
-        for e in dir:
-            if e.is_dir:
-                subpath = filepath.join(path, e.name)
-                subdir = self.fs.listdir(subpath)
-                if any([s.name == "__init__.py" for s in subdir]):
-                    modules.append(
-                        Module(e.name,
-                               filepath.join(subpath, "__init__.py"), True))
-            else:
-                name, ext = filepath.splitext(e.name)
-                if ext == ".py":
-                    if name == "__init__":
-                        name = filepath.basename(path)
-                        modules.append(
-                            Module(name, filepath.join(path, e.name), True))
-                    else:
-                        modules.append(
-                            Module(name, filepath.join(path, e.name)))
-        return modules
-
-    def workspace_symbols(self):
-        if self.symbol_cache:
-            return self.symbol_cache
-        py_paths = (path for path in self.fs.walk(self.root_path)
-                    if path.endswith(".py"))
-        py_srces = self.fs.batch_open(py_paths)
-        with multiprocessing.Pool() as p:
-            symbols_chunks = p.imap_unordered(
-                extract_exported_symbols_star, py_srces, chunksize=10)
-            symbols = list(itertools.chain.from_iterable(symbols_chunks))
-        self.symbol_cache = symbols
-        return symbols
-
-    def new_script(self, *args, **kwargs):
-        """Return an initialized Jedi API Script object."""
-        path = kwargs.get("path")
-        trace = False
-        if 'trace' in kwargs:
-            trace = True
-            del kwargs['trace']
-
-        def find_module_remote(string, dir=None, fullname=None):
-            """A swap-in replacement for Jedi's find module function that uses the
-            remote fs to resolve module imports."""
-            if trace:
-                print("find_module_remote", string, dir, fullname)
-            if type(dir) is list:  # TODO(renfred): handle list input for paths.
-                dir = dir[0]
-            dir = dir or filepath.dirname(path)
-            modules = self.workspace_modules(dir)
-            for m in modules:
-                if m.name == string:
-                    c = self.fs.open(m.path)
-                    is_package = m.is_package
-                    module_file = DummyFile(c)
-                    module_path = filepath.dirname(
-                        m.path) if is_package else m.path
-                    return module_file, module_path, is_package
-            else:
-                raise ImportError('Module "{}" not found in {}', string, dir)
-
-        def list_modules() -> List[str]:
-            if trace:
-                print("list_modules")
-            modules = [
-                f for f in self.fs.walk(self.root_path)
-                if f.lower().endswith(".py")
-            ]
-            return modules
-
-        def load_source(path) -> str:
-            if trace:
-                print("load_source", path)
-            return self.fs.open(path)
-
-        # TODO(keegan) It shouldn't matter if we are using a remote fs or not. Consider other ways to hook into the import system.
-        if isinstance(self.fs, RemoteFileSystem):
-            kwargs.update(
-                find_module=find_module_remote,
-                list_modules=list_modules,
-                load_source=load_source, )
-        return jedi.api.Script(*args, **kwargs)
 
     def handle(self, request):
         log.info("REQUEST %s %s", request.get("id"), request.get("method"))
@@ -203,6 +75,9 @@ class LangServer:
             log.warning("error handling request %s", request, exc_info=True)
         else:
             self.conn.write_response(request["id"], resp)
+
+    def new_script(self, *args, **kwargs):
+        return RemoteJedi(self.fs, self.root_path).new_script(*args, **kwargs)
 
     def serve_initialize(self, request):
         params = request["params"]
@@ -389,10 +264,12 @@ class LangServer:
         return refs
 
     def serve_symbols(self, request):
-        params = request["params"]
+        if self.all_symbols is None:
+            self.all_symbols = workspace_symbols(self.fs, self.root_path)
 
+        params = request["params"]
         q, limit = params.get("query"), params.get("limit", 50)
-        symbols = ((sym.score(q), sym) for sym in self.workspace_symbols())
+        symbols = ((sym.score(q), sym) for sym in self.all_symbols)
         symbols = ((score, sym) for (score, sym) in symbols if score >= 0)
         symbols = sorted(symbols, reverse=True, key=lambda x: x[0])[:limit]
 
@@ -420,13 +297,20 @@ class JSONRPC2Error(Exception):
         self.data = data
 
 
-# This exists purely for passing into imap
-def extract_exported_symbols_star(args):
-    path, src = args
-    return list(extract_exported_symbols(src, path))
+class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+    pass
+
+
+class LangserverTCPTransport(socketserver.StreamRequestHandler):
+    def handle(self):
+        conn = JSONRPC2Connection(TCPReadWriter(self.rfile, self.wfile))
+        s = LangServer(conn)
+        s.run()
 
 
 def main():
+    import argparse
+
     parser = argparse.ArgumentParser(description="")
     parser.add_argument(
         "--mode", default="stdio", help="communication (stdio|tcp)")
