@@ -1,6 +1,7 @@
 import logging
 import socketserver
 import sys
+import traceback
 
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
