@@ -4,6 +4,7 @@ from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import List
 
+from .tracer import Tracer
 from .jsonrpc import JSONRPC2Connection
 
 
@@ -47,10 +48,10 @@ class FileSystem(ABC):
 
 
 class LocalFileSystem(FileSystem):
-    def open(self, path):
+    def open(self, path, parent_span):
         return open(path).read()
 
-    def listdir(self, path):
+    def listdir(self, path, parent_span):
         entries = []
         names = os.listdir(path)
         for n in names:
@@ -64,25 +65,32 @@ class RemoteFileSystem(FileSystem):
         self.conn = conn
 
     @lru_cache(maxsize=128)
-    def open(self, path):
+    def open(self, path, parent_span):
+        open_span = Tracer.start_span("RemoteFileSystem.open", parent_span)
+        open_span.set_tag("path", path)
         resp = self.conn.send_request("textDocument/xcontent", {
             "textDocument": {
                 "uri": "file://" + path
             }
         })
+        open_span.finish()
         if "error" in resp:
             raise FileException(resp["error"])
         return resp["result"]["text"]
 
     @lru_cache(maxsize=128)
-    def listdir(self, path):
+    def listdir(self, path, parent_span):
+        list_span = Tracer.start_span("RemoteFileSystem.listdir", parent_span)
+        list_span.set_tag("path", path)
         # TODO(keegan) Use workspace/xfiles + cache
         resp = self.conn.send_request("fs/readDir", path)
         if resp.get("error") is not None:
+            list_span.finish()
             raise FileException(resp["error"])
         entries = []
         for e in resp["result"]:
             entries.append(Entry(e["name"], e["dir"], e["size"]))
+        list_span.finish()
         return entries
 
     def walk(self, path):
@@ -97,7 +105,8 @@ class RemoteFileSystem(FileSystem):
             else:
                 yield uri
 
-    def batch_open(self, paths):
+    def batch_open(self, paths, parent_span):
+        batch_open_span = Tracer.start_span("RemoteFileSystem.batch_open", parent_span)
         # We need to read the iterator paths twice, so convert to list
         paths = list(paths)
         responses = self.conn.send_request_batch(("textDocument/xcontent", {
@@ -105,6 +114,7 @@ class RemoteFileSystem(FileSystem):
                 "uri": "file://" + path
             }
         }) for path in paths)
+        batch_open_span.finish()
         for path, resp in zip(paths, responses):
             if "error" in resp:
                 # Consume rest of generator to ensure resources are shutdown

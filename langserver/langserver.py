@@ -4,6 +4,7 @@ import sys
 import traceback
 
 from .fs import LocalFileSystem, RemoteFileSystem
+from .tracer import Tracer
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .symbols import extract_symbols, workspace_symbols
@@ -35,6 +36,9 @@ class LangServer:
             self.handle(request)
 
     def handle(self, request):
+
+        handler_span = Tracer.start_span(request["method"])
+
         log.info("REQUEST %s %s", request.get("id"), request.get("method"))
 
         noop = lambda *a: None
@@ -50,17 +54,17 @@ class LangServer:
             "exit": self.serve_exit,
         }.get(request["method"], self.serve_default)
 
-        # We handle notifs differently since we can't respond
+        # We handle notifications differently since we can't respond
         if "id" not in request:
             try:
-                handler(request)
+                handler(request, handler_span)
             except Exception as e:
                 log.warning(
                     "error handling notification %s", request, exc_info=True)
             return
 
         try:
-            resp = handler(request)
+            resp = handler(request, handler_span)
         except JSONRPC2Error as e:
             self.conn.write_error(
                 request["id"], code=e.code, message=e.message, data=e.data)
@@ -75,12 +79,36 @@ class LangServer:
                 })
             log.warning("error handling request %s", request, exc_info=True)
         else:
+            write_response_span = Tracer.start_span("send_response", handler_span)
             self.conn.write_response(request["id"], resp)
+            write_response_span.finish()
+
+        handler_span.finish()
 
     def new_script(self, *args, **kwargs):
         return RemoteJedi(self.fs, self.root_path).new_script(*args, **kwargs)
 
-    def serve_initialize(self, request):
+    @staticmethod
+    def goto_definitions(script, request, parent_span):
+        def_span = Tracer.start_span("Script.goto_definitions", parent_span)
+        try:
+            return script.goto_definitions()
+        except Exception as e:
+            # TODO return these errors using JSONRPC properly. Doing it this way
+            # initially for debugging purposes.
+            log.error("Failed goto_definitions for %s", request, exc_info=True)
+            return []
+        finally:
+            def_span.finish()
+
+    @staticmethod
+    def usages(script, parent_span):
+        usages_span = Tracer.start_span("Script.usages", parent_span)
+        usages = script.usages()
+        usages_span.finish()
+        return usages
+
+    def serve_initialize(self, request, parent_span):
         params = request["params"]
         self.root_path = path_from_uri(params["rootPath"])
 
@@ -101,26 +129,22 @@ class LangServer:
             }
         }
 
-    def serve_hover(self, request):
+    def serve_hover(self, request, parent_span):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        source = self.fs.open(path)
+        source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = self.new_script(
             path=path,
             source=source,
             line=pos["line"] + 1,
-            column=pos["character"])
+            column=pos["character"],
+            parent_span=parent_span
+        )
 
-        try:
-            defs = script.goto_definitions()
-        except Exception as e:
-            # TODO return these errors using JSONRPC properly. Doing it this way
-            # initially for debugging purposes.
-            log.error("Failed goto_definitions for %s", request, exc_info=True)
-            return {}
+        defs = LangServer.goto_definitions(script, request, parent_span)
 
         # The code from this point onwards is modifed from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
@@ -194,20 +218,22 @@ class LangServer:
         else:
             return {}
 
-    def serve_definition(self, request):
+    def serve_definition(self, request, parent_span):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        source = self.fs.open(path)
+        source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = self.new_script(
             path=path,
             source=source,
             line=pos["line"] + 1,
-            column=pos["character"])
+            column=pos["character"],
+            parent_span=parent_span
+        )
 
-        defs = script.goto_definitions()
+        defs = LangServer.goto_definitions(script, request, parent_span)
         locs = []
         for d in defs:
             if not d.is_definition() or d.line is None or d.column is None:
@@ -228,20 +254,22 @@ class LangServer:
             })
         return locs
 
-    def serve_references(self, request):
+    def serve_references(self, request, parent_span):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        source = self.fs.open(path)
+        source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
         script = self.new_script(
             path=path,
             source=source,
             line=pos["line"] + 1,
-            column=pos["character"])
+            column=pos["character"],
+            parent_span=parent_span
+        )
 
-        usages = script.usages()
+        usages = LangServer.usages(script, parent_span)
         if len(usages) == 0:
             return {}
 
@@ -264,9 +292,9 @@ class LangServer:
             })
         return refs
 
-    def serve_symbols(self, request):
+    def serve_symbols(self, request, parent_span):
         if self.all_symbols is None:
-            self.all_symbols = workspace_symbols(self.fs, self.root_path)
+            self.all_symbols = workspace_symbols(self.fs, self.root_path, parent_span)
 
         params = request["params"]
         q, limit = params.get("query"), params.get("limit", 50)
@@ -276,16 +304,16 @@ class LangServer:
 
         return [s.json_object() for (_, s) in symbols]
 
-    def serve_documentSymbols(self, request):
+    def serve_documentSymbols(self, request, parent_span):
         params = request["params"]
         path = path_from_uri(params["textDocument"]["uri"])
-        source = self.fs.open(path)
+        source = self.fs.open(path, parent_span)
         return [s.json_object() for s in extract_symbols(source, path)]
 
-    def serve_exit(self, request):
+    def serve_exit(self, request, parent_span):
         self.running = False
 
-    def serve_default(self, request):
+    def serve_default(self, request, parent_span):
         raise JSONRPC2Error(
             code=-32601,
             message="method {} not found".format(request["method"]))
@@ -318,10 +346,16 @@ def main():
     parser.add_argument(
         "--addr", default=4389, help="server listen (tcp)", type=int)
     parser.add_argument("--debug", action="store_true")
+    parser.add_argument("--lightstep_project")
+    parser.add_argument("--lightstep_token")
 
     args = parser.parse_args()
 
     logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
+
+    if args.lightstep_project and args.lightstep_token:
+        Tracer.setup(args.lightstep_project, args.lightstep_token)
+
     if args.mode == "stdio":
         logging.info("Reading on stdin, writing on stdout")
         s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
