@@ -37,7 +37,11 @@ class LangServer:
             self.handle(request)
 
     def handle(self, request):
-        span_context = opentracing.tracer.extract(opentracing.Format.TEXT_MAP, request.get("meta", None))
+        if "meta" in request:
+            span_context = opentracing.tracer.extract(opentracing.Format.TEXT_MAP, request["meta"])
+        else:
+            span_context = None
+
         with opentracing.tracer.start_span(request.get("method", "UNKNOWN"), child_of=span_context) as span:
             request["span"] = span
             self.route_and_respond(request)
