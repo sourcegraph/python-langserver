@@ -24,11 +24,11 @@ class Entry:
 
 class FileSystem(ABC):
     @abstractmethod
-    def open(path: str) -> str:
+    def open(path: str, parent_span) -> str:
         pass
 
     @abstractmethod
-    def listdir(path: str) -> List[Entry]:
+    def listdir(path: str, parent_span) -> List[Entry]:
         pass
 
     def batch_open(self, paths):
