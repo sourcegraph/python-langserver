@@ -1,8 +1,9 @@
 import base64
 import os
-import opentracing
 from abc import ABC, abstractmethod
 from functools import lru_cache
+
+import opentracing
 from typing import List
 
 from .jsonrpc import JSONRPC2Connection
@@ -66,7 +67,8 @@ class RemoteFileSystem(FileSystem):
 
     @lru_cache(maxsize=128)
     def open(self, path, parent_span):
-        with opentracing.start_child_span(parent_span, "RemoteFileSystem.open") as open_span:
+        with opentracing.start_child_span(
+                parent_span, "RemoteFileSystem.open") as open_span:
             open_span.set_tag("path", path)
             resp = self.conn.send_request("textDocument/xcontent", {
                 "textDocument": {
@@ -79,7 +81,8 @@ class RemoteFileSystem(FileSystem):
 
     @lru_cache(maxsize=128)
     def listdir(self, path, parent_span):
-        with opentracing.start_child_span(parent_span, "RemoteFileSystem.listdir") as list_span:
+        with opentracing.start_child_span(
+                parent_span, "RemoteFileSystem.listdir") as list_span:
             list_span.set_tag("path", path)
             # TODO(keegan) Use workspace/xfiles + cache
             resp = self.conn.send_request("fs/readDir", path)
@@ -103,14 +106,17 @@ class RemoteFileSystem(FileSystem):
                 yield uri
 
     def batch_open(self, paths, parent_span):
-        with opentracing.start_child_span(parent_span, "RemoteFileSystem.batch_open") as batch_open_span:
+        with opentracing.start_child_span(
+                parent_span, "RemoteFileSystem.batch_open") as batch_open_span:
             # We need to read the iterator paths twice, so convert to list
             paths = list(paths)
-            responses = self.conn.send_request_batch(("textDocument/xcontent", {
-                "textDocument": {
-                    "uri": "file://" + path
-                }
-            }) for path in paths)
+            responses = self.conn.send_request_batch(("textDocument/xcontent",
+                                                      {
+                                                          "textDocument": {
+                                                              "uri":
+                                                              "file://" + path
+                                                          }
+                                                      }) for path in paths)
             for path, resp in zip(paths, responses):
                 if "error" in resp:
                     # Consume rest of generator to ensure resources are shutdown

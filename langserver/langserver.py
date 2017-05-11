@@ -2,8 +2,9 @@ import logging
 import socketserver
 import sys
 import traceback
-import opentracing
+
 import lightstep
+import opentracing
 
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
@@ -38,11 +39,14 @@ class LangServer:
 
     def handle(self, request):
         if "meta" in request:
-            span_context = opentracing.tracer.extract(opentracing.Format.TEXT_MAP, request["meta"])
+            span_context = opentracing.tracer.extract(
+                opentracing.Format.TEXT_MAP, request["meta"])
         else:
             span_context = None
 
-        with opentracing.tracer.start_span(request.get("method", "UNKNOWN"), child_of=span_context) as span:
+        with opentracing.tracer.start_span(
+                request.get("method", "UNKNOWN"),
+                child_of=span_context) as span:
             request["span"] = span
             self.route_and_respond(request)
 
@@ -87,7 +91,8 @@ class LangServer:
                 })
             log.warning("error handling request %s", request, exc_info=True)
         else:
-            with opentracing.start_child_span(request["span"], "send_response") as write_response_span:
+            with opentracing.start_child_span(
+                    request["span"], "send_response") as write_response_span:
                 self.conn.write_response(request["id"], resp)
 
     def new_script(self, *args, **kwargs):
@@ -97,18 +102,21 @@ class LangServer:
     def goto_definitions(script, request):
         parent_span = request["span"]
         try:
-            with opentracing.start_child_span(parent_span, "Script.goto_definitions") as def_span:
+            with opentracing.start_child_span(
+                    parent_span, "Script.goto_definitions") as def_span:
                 return script.goto_definitions()
         except Exception as e:
             # TODO return these errors using JSONRPC properly. Doing it this way
             # initially for debugging purposes.
             log.error("Failed goto_definitions for %s", request, exc_info=True)
-            parent_span.log_kv({ "error", "Failed goto_definitions for %s" % request})
+            parent_span.log_kv(
+                {"error", "Failed goto_definitions for %s" % request})
             return []
 
     @staticmethod
     def usages(script, parent_span):
-        with opentracing.start_child_span(parent_span, "Script.usages") as usages_span:
+        with opentracing.start_child_span(parent_span,
+                                          "Script.usages") as usages_span:
             return script.usages()
 
     def serve_initialize(self, request):
@@ -145,8 +153,7 @@ class LangServer:
             source=source,
             line=pos["line"] + 1,
             column=pos["character"],
-            parent_span=parent_span
-        )
+            parent_span=parent_span)
 
         defs = LangServer.goto_definitions(script, request)
 
@@ -177,7 +184,8 @@ class LangServer:
                 return 'builtin'
 
         results = []
-        with opentracing.start_child_span(parent_span, "accumulate_definitions") as accum_defs_span:
+        with opentracing.start_child_span(
+                parent_span, "accumulate_definitions") as accum_defs_span:
             for definition in defs:
                 signature = definition.name
                 description = None
@@ -197,7 +205,8 @@ class LangServer:
                         description = definition.docstring(raw=True).strip()
                     except Exception:
                         description = ''
-                    if not description and hasattr(definition, 'get_line_code'):
+                    if not description and hasattr(definition,
+                                                   'get_line_code'):
                         # jedi returns an empty string for compiled objects
                         description = definition.docstring().strip()
 
@@ -236,8 +245,7 @@ class LangServer:
             source=source,
             line=pos["line"] + 1,
             column=pos["character"],
-            parent_span=parent_span
-        )
+            parent_span=parent_span)
 
         defs = LangServer.goto_definitions(script, request)
         locs = []
@@ -273,8 +281,7 @@ class LangServer:
             source=source,
             line=pos["line"] + 1,
             column=pos["character"],
-            parent_span=parent_span
-        )
+            parent_span=parent_span)
 
         usages = LangServer.usages(script, parent_span)
         if len(usages) == 0:
@@ -302,7 +309,8 @@ class LangServer:
     def serve_symbols(self, request):
         parent_span = request["span"]
         if self.all_symbols is None:
-            self.all_symbols = workspace_symbols(self.fs, self.root_path, parent_span)
+            self.all_symbols = workspace_symbols(self.fs, self.root_path,
+                                                 parent_span)
 
         params = request["params"]
         q, limit = params.get("query"), params.get("limit", 50)
@@ -363,7 +371,9 @@ def main():
 
     # if args.lightstep_token isn't set, we'll fall back on the default no-op opentracing implementation
     if args.lightstep_token:
-        opentracing.tracer = lightstep.Tracer(component_name="python-langserver", access_token=args.lightstep_token)
+        opentracing.tracer = lightstep.Tracer(
+            component_name="python-langserver",
+            access_token=args.lightstep_token)
 
     if args.mode == "stdio":
         logging.info("Reading on stdin, writing on stdout")

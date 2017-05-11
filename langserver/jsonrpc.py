@@ -1,10 +1,10 @@
 import base64
 import json
-import random
-import uuid
 import logging
 import queue
+import random
 import threading
+import uuid
 from collections import deque
 
 log = logging.getLogger(__name__)
