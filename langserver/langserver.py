@@ -2,9 +2,10 @@ import logging
 import socketserver
 import sys
 import traceback
+import opentracing
+import lightstep
 
 from .fs import LocalFileSystem, RemoteFileSystem
-from .tracer import Tracer
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .symbols import extract_symbols, workspace_symbols
@@ -36,7 +37,8 @@ class LangServer:
             self.handle(request)
 
     def handle(self, request):
-        with Tracer.start_span(request.get("method", "UNKNOWN")) as span:
+        span_context = opentracing.tracer.extract(opentracing.Format.TEXT_MAP, request.get("meta", None))
+        with opentracing.tracer.start_span(request.get("method", "UNKNOWN"), child_of=span_context) as span:
             request["span"] = span
             self.route_and_respond(request)
 
@@ -81,7 +83,7 @@ class LangServer:
                 })
             log.warning("error handling request %s", request, exc_info=True)
         else:
-            with Tracer.start_span("send_response", request["span"]) as write_response_span:
+            with opentracing.start_child_span(request["span"], "send_response") as write_response_span:
                 self.conn.write_response(request["id"], resp)
 
     def new_script(self, *args, **kwargs):
@@ -91,7 +93,7 @@ class LangServer:
     def goto_definitions(script, request):
         parent_span = request["span"]
         try:
-            with Tracer.start_span("Script.goto_definitions", parent_span) as def_span:
+            with opentracing.start_child_span(parent_span, "Script.goto_definitions") as def_span:
                 return script.goto_definitions()
         except Exception as e:
             # TODO return these errors using JSONRPC properly. Doing it this way
@@ -102,7 +104,7 @@ class LangServer:
 
     @staticmethod
     def usages(script, parent_span):
-        with Tracer.start_span("Script.usages", parent_span) as usages_span:
+        with opentracing.start_child_span(parent_span, "Script.usages") as usages_span:
             return script.usages()
 
     def serve_initialize(self, request):
@@ -171,7 +173,7 @@ class LangServer:
                 return 'builtin'
 
         results = []
-        with Tracer.start_span("accumulate_definitions", parent_span) as accum_defs_span:
+        with opentracing.start_child_span(parent_span, "accumulate_definitions") as accum_defs_span:
             for definition in defs:
                 signature = definition.name
                 description = None
@@ -355,8 +357,9 @@ def main():
 
     logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
 
+    # if args.lightstep_token isn't set, we'll fall back on the default no-op opentracing implementation
     if args.lightstep_token:
-        Tracer.setup(args.lightstep_token)
+        opentracing.tracer = lightstep.Tracer(component_name="python-langserver", access_token=args.lightstep_token)
 
     if args.mode == "stdio":
         logging.info("Reading on stdin, writing on stdout")

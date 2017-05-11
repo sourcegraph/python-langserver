@@ -1,10 +1,10 @@
 from os import path as filepath
 
 import jedi
+import opentracing
 from typing import List
 
 from .fs import RemoteFileSystem
-from .tracer import Tracer
 
 
 class Module:
@@ -36,7 +36,7 @@ class RemoteJedi:
     def workspace_modules(self, path, parent_span) -> List[Module]:
         """Return a set of all python modules found within a given path."""
 
-        with Tracer.start_span("workspace_modules", parent_span) as workspace_modules_span:
+        with opentracing.start_child_span(parent_span, "workspace_modules") as workspace_modules_span:
             workspace_modules_span.set_tag("path", path)
 
             dir = self.fs.listdir(path, workspace_modules_span)
@@ -68,9 +68,9 @@ class RemoteJedi:
             parent_span = kwargs.get("parent_span")
             del kwargs["parent_span"]
         else:
-            parent_span = Tracer.start_span("new_script_parent")
+            parent_span = opentracing.tracer.start_span("new_script_parent")
 
-        with Tracer.start_span("new_script", parent_span) as new_script_span:
+        with opentracing.start_child_span(parent_span, "new_script") as new_script_span:
             path = kwargs.get("path")
             new_script_span.set_tag("path", path)
             return self._new_script_impl(new_script_span, *args, **kwargs)
@@ -86,7 +86,7 @@ class RemoteJedi:
         def find_module_remote(string, dir=None, fullname=None):
             """A swap-in replacement for Jedi's find module function that uses the
             remote fs to resolve module imports."""
-            with Tracer.start_span("find_module_remote_callback", parent_span) as find_module_span:
+            with opentracing.start_child_span(parent_span, "find_module_remote_callback") as find_module_span:
                 if trace:
                     print("find_module_remote", string, dir, fullname)
                 if type(dir) is list:  # TODO(renfred): handle list input for paths.
@@ -117,7 +117,7 @@ class RemoteJedi:
             return modules
 
         def load_source(path) -> str:
-            with Tracer.start_span("load_source_callback", parent_span) as load_source_span:
+            with opentracing.start_child_span(parent_span, "load_source_callback") as load_source_span:
                 load_source_span.set_tag("path", path)
                 if trace:
                     print("load_source", path)
