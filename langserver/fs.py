@@ -1,7 +1,6 @@
 import base64
 import os
 from abc import ABC, abstractmethod
-from functools import lru_cache
 
 import opentracing
 from typing import List
@@ -65,7 +64,6 @@ class RemoteFileSystem(FileSystem):
     def __init__(self, conn: JSONRPC2Connection):
         self.conn = conn
 
-    @lru_cache(maxsize=128)
     def open(self, path, parent_span):
         with opentracing.start_child_span(
                 parent_span, "RemoteFileSystem.open") as open_span:
@@ -79,7 +77,6 @@ class RemoteFileSystem(FileSystem):
                 raise FileException(resp["error"])
             return resp["result"]["text"]
 
-    @lru_cache(maxsize=128)
     def listdir(self, path, parent_span):
         with opentracing.start_child_span(
                 parent_span, "RemoteFileSystem.listdir") as list_span:
