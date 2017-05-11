@@ -335,7 +335,7 @@ class JSONRPC2Error(Exception):
         self.data = data
 
 
-class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+class ThreadingTCPServer(socketserver.ForkingMixIn, socketserver.TCPServer):
     pass
 
 
