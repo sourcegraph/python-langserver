@@ -36,9 +36,11 @@ class LangServer:
             self.handle(request)
 
     def handle(self, request):
+        with Tracer.start_span(request.get("method", "UNKNOWN")) as span:
+            request["span"] = span
+            self.route_and_respond(request)
 
-        handler_span = Tracer.start_span(request["method"])
-
+    def route_and_respond(self, request):
         log.info("REQUEST %s %s", request.get("id"), request.get("method"))
 
         noop = lambda *a: None
@@ -57,14 +59,14 @@ class LangServer:
         # We handle notifications differently since we can't respond
         if "id" not in request:
             try:
-                handler(request, handler_span)
+                handler(request)
             except Exception as e:
                 log.warning(
                     "error handling notification %s", request, exc_info=True)
             return
 
         try:
-            resp = handler(request, handler_span)
+            resp = handler(request)
         except JSONRPC2Error as e:
             self.conn.write_error(
                 request["id"], code=e.code, message=e.message, data=e.data)
@@ -79,36 +81,31 @@ class LangServer:
                 })
             log.warning("error handling request %s", request, exc_info=True)
         else:
-            write_response_span = Tracer.start_span("send_response", handler_span)
-            self.conn.write_response(request["id"], resp)
-            write_response_span.finish()
-
-        handler_span.finish()
+            with Tracer.start_span("send_response", request["span"]) as write_response_span:
+                self.conn.write_response(request["id"], resp)
 
     def new_script(self, *args, **kwargs):
         return RemoteJedi(self.fs, self.root_path).new_script(*args, **kwargs)
 
     @staticmethod
-    def goto_definitions(script, request, parent_span):
-        def_span = Tracer.start_span("Script.goto_definitions", parent_span)
+    def goto_definitions(script, request):
+        parent_span = request["span"]
         try:
-            return script.goto_definitions()
+            with Tracer.start_span("Script.goto_definitions", parent_span) as def_span:
+                return script.goto_definitions()
         except Exception as e:
             # TODO return these errors using JSONRPC properly. Doing it this way
             # initially for debugging purposes.
             log.error("Failed goto_definitions for %s", request, exc_info=True)
+            parent_span.log_kv({ "error", "Failed goto_definitions for %s" % request})
             return []
-        finally:
-            def_span.finish()
 
     @staticmethod
     def usages(script, parent_span):
-        usages_span = Tracer.start_span("Script.usages", parent_span)
-        usages = script.usages()
-        usages_span.finish()
-        return usages
+        with Tracer.start_span("Script.usages", parent_span) as usages_span:
+            return script.usages()
 
-    def serve_initialize(self, request, parent_span):
+    def serve_initialize(self, request):
         params = request["params"]
         self.root_path = path_from_uri(params["rootPath"])
 
@@ -129,10 +126,11 @@ class LangServer:
             }
         }
 
-    def serve_hover(self, request, parent_span):
+    def serve_hover(self, request):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
+        parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
@@ -144,7 +142,7 @@ class LangServer:
             parent_span=parent_span
         )
 
-        defs = LangServer.goto_definitions(script, request, parent_span)
+        defs = LangServer.goto_definitions(script, request)
 
         # The code from this point onwards is modifed from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
@@ -173,55 +171,57 @@ class LangServer:
                 return 'builtin'
 
         results = []
-        for definition in defs:
-            signature = definition.name
-            description = None
-            if definition.type in ('class', 'function'):
-                signature = generate_signature(definition)
-                try:
-                    description = definition.docstring(raw=True).strip()
-                except Exception:
-                    description = ''
-                if not description and not hasattr(definition,
-                                                   'get_line_code'):
-                    # jedi returns an empty string for compiled objects
-                    description = definition.docstring().strip()
-            if definition.type == 'module':
-                signature = definition.full_name
-                try:
-                    description = definition.docstring(raw=True).strip()
-                except Exception:
-                    description = ''
-                if not description and hasattr(definition, 'get_line_code'):
-                    # jedi returns an empty string for compiled objects
-                    description = definition.docstring().strip()
-
-            def_type = get_definition_type(definition)
-            if def_type in ('function', 'method'):
-                signature = 'def ' + signature
-            elif def_type == 'class':
-                signature = 'class ' + signature
-            else:
-                # TODO(keegan) vscode python uses the current word if definition.name is empty
+        with Tracer.start_span("accumulate_definitions", parent_span) as accum_defs_span:
+            for definition in defs:
                 signature = definition.name
+                description = None
+                if definition.type in ('class', 'function'):
+                    signature = generate_signature(definition)
+                    try:
+                        description = definition.docstring(raw=True).strip()
+                    except Exception:
+                        description = ''
+                    if not description and not hasattr(definition,
+                                                       'get_line_code'):
+                        # jedi returns an empty string for compiled objects
+                        description = definition.docstring().strip()
+                if definition.type == 'module':
+                    signature = definition.full_name
+                    try:
+                        description = definition.docstring(raw=True).strip()
+                    except Exception:
+                        description = ''
+                    if not description and hasattr(definition, 'get_line_code'):
+                        # jedi returns an empty string for compiled objects
+                        description = definition.docstring().strip()
 
-            # TODO(keegan) implement the rest of https://sourcegraph.com/github.com/DonJayamanne/pythonVSCode/-/blob/src/client/providers/hoverProvider.ts#L34
-            results.append({
-                "language": "python",
-                "value": signature,
-            })
-            if description:
-                results.append(description)
+                def_type = get_definition_type(definition)
+                if def_type in ('function', 'method'):
+                    signature = 'def ' + signature
+                elif def_type == 'class':
+                    signature = 'class ' + signature
+                else:
+                    # TODO(keegan) vscode python uses the current word if definition.name is empty
+                    signature = definition.name
+
+                # TODO(keegan) implement the rest of https://sourcegraph.com/github.com/DonJayamanne/pythonVSCode/-/blob/src/client/providers/hoverProvider.ts#L34
+                results.append({
+                    "language": "python",
+                    "value": signature,
+                })
+                if description:
+                    results.append(description)
 
         if results:
             return {"contents": results}
         else:
             return {}
 
-    def serve_definition(self, request, parent_span):
+    def serve_definition(self, request):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
+        parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
@@ -233,7 +233,7 @@ class LangServer:
             parent_span=parent_span
         )
 
-        defs = LangServer.goto_definitions(script, request, parent_span)
+        defs = LangServer.goto_definitions(script, request)
         locs = []
         for d in defs:
             if not d.is_definition() or d.line is None or d.column is None:
@@ -254,10 +254,11 @@ class LangServer:
             })
         return locs
 
-    def serve_references(self, request, parent_span):
+    def serve_references(self, request):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
+        parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}
@@ -292,7 +293,8 @@ class LangServer:
             })
         return refs
 
-    def serve_symbols(self, request, parent_span):
+    def serve_symbols(self, request):
+        parent_span = request["span"]
         if self.all_symbols is None:
             self.all_symbols = workspace_symbols(self.fs, self.root_path, parent_span)
 
@@ -304,16 +306,17 @@ class LangServer:
 
         return [s.json_object() for (_, s) in symbols]
 
-    def serve_documentSymbols(self, request, parent_span):
+    def serve_documentSymbols(self, request):
         params = request["params"]
         path = path_from_uri(params["textDocument"]["uri"])
+        parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         return [s.json_object() for s in extract_symbols(source, path)]
 
-    def serve_exit(self, request, parent_span):
+    def serve_exit(self, request):
         self.running = False
 
-    def serve_default(self, request, parent_span):
+    def serve_default(self, request):
         raise JSONRPC2Error(
             code=-32601,
             message="method {} not found".format(request["method"]))
@@ -346,15 +349,14 @@ def main():
     parser.add_argument(
         "--addr", default=4389, help="server listen (tcp)", type=int)
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--lightstep_project")
     parser.add_argument("--lightstep_token")
 
     args = parser.parse_args()
 
     logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
 
-    if args.lightstep_project and args.lightstep_token:
-        Tracer.setup(args.lightstep_project, args.lightstep_token)
+    if args.lightstep_token:
+        Tracer.setup(args.lightstep_token)
 
     if args.mode == "stdio":
         logging.info("Reading on stdin, writing on stdout")
