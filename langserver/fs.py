@@ -1,5 +1,6 @@
 import base64
 import os
+import opentracing
 from abc import ABC, abstractmethod
 from functools import lru_cache
 from typing import List
@@ -47,10 +48,10 @@ class FileSystem(ABC):
 
 
 class LocalFileSystem(FileSystem):
-    def open(self, path):
+    def open(self, path, parent_span):
         return open(path).read()
 
-    def listdir(self, path):
+    def listdir(self, path, parent_span):
         entries = []
         names = os.listdir(path)
         for n in names:
@@ -64,26 +65,30 @@ class RemoteFileSystem(FileSystem):
         self.conn = conn
 
     @lru_cache(maxsize=128)
-    def open(self, path):
-        resp = self.conn.send_request("textDocument/xcontent", {
-            "textDocument": {
-                "uri": "file://" + path
-            }
-        })
-        if "error" in resp:
-            raise FileException(resp["error"])
-        return resp["result"]["text"]
+    def open(self, path, parent_span):
+        with opentracing.start_child_span(parent_span, "RemoteFileSystem.open") as open_span:
+            open_span.set_tag("path", path)
+            resp = self.conn.send_request("textDocument/xcontent", {
+                "textDocument": {
+                    "uri": "file://" + path
+                }
+            })
+            if "error" in resp:
+                raise FileException(resp["error"])
+            return resp["result"]["text"]
 
     @lru_cache(maxsize=128)
-    def listdir(self, path):
-        # TODO(keegan) Use workspace/xfiles + cache
-        resp = self.conn.send_request("fs/readDir", path)
-        if resp.get("error") is not None:
-            raise FileException(resp["error"])
-        entries = []
-        for e in resp["result"]:
-            entries.append(Entry(e["name"], e["dir"], e["size"]))
-        return entries
+    def listdir(self, path, parent_span):
+        with opentracing.start_child_span(parent_span, "RemoteFileSystem.listdir") as list_span:
+            list_span.set_tag("path", path)
+            # TODO(keegan) Use workspace/xfiles + cache
+            resp = self.conn.send_request("fs/readDir", path)
+            if resp.get("error") is not None:
+                raise FileException(resp["error"])
+            entries = []
+            for e in resp["result"]:
+                entries.append(Entry(e["name"], e["dir"], e["size"]))
+            return entries
 
     def walk(self, path):
         resp = self.conn.send_request("workspace/xfiles",
@@ -97,18 +102,19 @@ class RemoteFileSystem(FileSystem):
             else:
                 yield uri
 
-    def batch_open(self, paths):
-        # We need to read the iterator paths twice, so convert to list
-        paths = list(paths)
-        responses = self.conn.send_request_batch(("textDocument/xcontent", {
-            "textDocument": {
-                "uri": "file://" + path
-            }
-        }) for path in paths)
-        for path, resp in zip(paths, responses):
-            if "error" in resp:
-                # Consume rest of generator to ensure resources are shutdown
-                for _ in responses:
-                    pass
-                raise FileException(resp["error"])
-            yield (path, resp["result"]["text"])
+    def batch_open(self, paths, parent_span):
+        with opentracing.start_child_span(parent_span, "RemoteFileSystem.batch_open") as batch_open_span:
+            # We need to read the iterator paths twice, so convert to list
+            paths = list(paths)
+            responses = self.conn.send_request_batch(("textDocument/xcontent", {
+                "textDocument": {
+                    "uri": "file://" + path
+                }
+            }) for path in paths)
+            for path, resp in zip(paths, responses):
+                if "error" in resp:
+                    # Consume rest of generator to ensure resources are shutdown
+                    for _ in responses:
+                        pass
+                    raise FileException(resp["error"])
+                yield (path, resp["result"]["text"])

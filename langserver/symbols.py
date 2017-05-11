@@ -114,10 +114,10 @@ def extract_exported_symbols(source, path):
     return filter(is_exported, extract_symbols(source, path))
 
 
-def workspace_symbols(fs, root_path):
+def workspace_symbols(fs, root_path, parent_span):
     "returns a list of all exported symbols under root_path in fs."
     py_paths = (path for path in fs.walk(root_path) if path.endswith(".py"))
-    py_srces = fs.batch_open(py_paths)
+    py_srces = fs.batch_open(py_paths, parent_span)
     with multiprocessing.Pool() as p:
         symbols_chunks = p.imap_unordered(
             _imap_extract_exported_symbols, py_srces, chunksize=10)
