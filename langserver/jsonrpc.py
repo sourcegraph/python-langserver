@@ -162,7 +162,7 @@ class JSONRPC2Connection:
                 }
                 self._send(body)
 
-            # Sentinal value to indicate we are done
+            # Sentinel value to indicate we are done
             q.put(None)
 
         threading.Thread(target=send).start()

@@ -343,7 +343,7 @@ class JSONRPC2Error(Exception):
         self.data = data
 
 
-class ThreadingTCPServer(socketserver.ThreadingMixIn, socketserver.TCPServer):
+class ForkingTCPServer(socketserver.ForkingMixIn, socketserver.TCPServer):
     pass
 
 
@@ -382,9 +382,9 @@ def main():
     elif args.mode == "tcp":
         host, addr = "0.0.0.0", args.addr
         logging.info("Accepting TCP connections on %s:%s", host, addr)
-        ThreadingTCPServer.allow_reuse_address = True
-        ThreadingTCPServer.daemon_threads = True
-        s = ThreadingTCPServer((host, addr), LangserverTCPTransport)
+        ForkingTCPServer.allow_reuse_address = True
+        ForkingTCPServer.daemon_threads = True
+        s = ForkingTCPServer((host, addr), LangserverTCPTransport)
         try:
             s.serve_forever()
         finally:
