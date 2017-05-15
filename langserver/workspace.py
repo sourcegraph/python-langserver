@@ -1,0 +1,150 @@
+from .fs import FileSystem, LocalFileSystem
+from typing import Dict
+import os
+import os.path
+import opentracing
+
+
+class DummyFile:
+    def __init__(self, contents):
+        self.contents = contents
+
+    def read(self):
+        return self.contents
+
+    def close(self):
+        pass
+
+
+class Module:
+    def __init__(self, name, path, is_package=False, qualified_name=None, is_external=False):
+        self.name = name
+        if qualified_name:
+            self.qualified_name = qualified_name
+        else:
+            self.qualified_name = name
+        self.path = path
+        self.is_package = is_package
+        self.is_external = is_external
+
+    def __repr__(self):
+        return "PythonModule({}, {})".format(self.name, self.path)
+
+
+class Workspace:
+
+    def __init__(self, fs: FileSystem, project_root: str):
+
+        self.PROJECT_ROOT = project_root
+
+        # TODO: THESE ARE HERE FOR EXPERIMENTAL PURPOSES; WE SHOULD PROVIDE CORRECT VALUES FOR EACH WORKSPACE ON INIT
+        self.PYTHON_ROOT = "/usr/lib/python3.5"  # point to a Python installation of whatever version the project wants
+        self.PACKAGES_ROOT = "/usr/local/lib/python3.5/dist-packages"  # point to a workspace-specific packages folder
+
+        self.fs = fs
+        self.local_fs = LocalFileSystem()
+        self.project = {}
+        self.stdlib = {}
+        self.dependencies = {}
+
+        # TODO: consider indexing modules in a separate process and setting a semaphore or something
+        self.index_project()
+        self.index_dependencies(self.stdlib, self.PYTHON_ROOT)
+        self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
+
+    def index_dependencies(self, index: Dict[str, Module], library_path: str, breadcrumb: str=None):
+        """
+        Given a root library path (e.g., the Python root path or the dist-packages root path), this method traverses
+        it recursively and indexes all the packages and modules contained therein. It constructs a mapping from the
+        fully qualified module name to a Module object containing the metadata that Jedi needs.
+
+        :param index: the dictionary that should be used to store this index (will be modified)
+        :param library_path: the root path containing the modules and packages to be indexed
+        :param breadcrumb: should be omitted by the caller; this method uses it to keep track of the fully qualified
+        module name
+        """
+        for filename in os.listdir(library_path):
+
+            basename, extension = os.path.splitext(filename)
+            if filename == "__init__.py":
+                # we're inside a folder whose name is the package name, so the breadcrumb is the qualified name
+                qualified_name = breadcrumb
+            elif extension == ".egg":
+                # it's a Python egg; discard the shell and go deeper, which means using the breadcrumb as-is
+                qualified_name = breadcrumb
+            elif breadcrumb:
+                # otherwise add the filename to the breadcrumb
+                qualified_name = ".".join((breadcrumb, basename))
+            else:
+                qualified_name = basename
+
+            if os.path.isdir(os.path.join(library_path, filename)):
+                # recursively index the folder
+                self.index_dependencies(index, os.path.join(library_path, filename), qualified_name)
+                continue
+
+            if filename == "__init__.py":
+                # we're already inside a package
+                module_name = os.path.basename(library_path)
+                the_module = Module(module_name, os.path.join(library_path, filename), True, qualified_name, True)
+                index[qualified_name] = the_module
+                continue
+
+            if extension != ".py" or basename.startswith("__") and basename.endswith("__"):
+                # not a relevant file
+                continue
+
+            if extension == ".py":
+                # just a regular non-package module
+                the_module = Module(basename, os.path.join(library_path, filename), False, qualified_name, True)
+                index[qualified_name] = the_module
+                continue
+
+    def index_project(self):
+        all_paths = list(self.fs.walk(self.PROJECT_ROOT))
+
+        package_paths = {}
+        for path in all_paths:
+            folder, filename = os.path.split(path)
+            if filename == "__init__.py":
+                package_paths[folder] = True
+
+        for path in all_paths:
+            folder, filename = os.path.split(path)
+            basename, ext = os.path.splitext(filename)
+            if filename == "__init__.py":
+                parent, this = os.path.split(folder)
+            elif filename.endswith(".py"):
+                parent = folder
+                this = basename
+            else:
+                continue
+            qualified_name_components = [this]
+            # qualified name should only contain folder names that are packages, not all folder names
+            while parent in package_paths:
+                parent, this = os.path.split(parent)
+                qualified_name_components.append(this)
+            qualified_name_components.reverse()
+            qualified_name = ".".join(qualified_name_components)
+            if filename == "__init__.py":
+                module_name = os.path.basename(folder)
+                the_module = Module(module_name, path, True, qualified_name)
+                self.project[qualified_name] = the_module
+            elif ext == ".py" and not basename.startswith("__") and not basename.endswith("__"):
+                the_module = Module(basename, path, False, qualified_name)
+                self.project[qualified_name] = the_module
+
+    def find_stdlib_module(self, qualified_name: str) -> Module:
+        return self.stdlib.get(qualified_name, None)
+
+    def find_project_module(self, qualified_name: str) -> Module:
+        return self.project.get(qualified_name, None)
+
+    def find_external_module(self, qualified_name: str) -> Module:
+        return self.dependencies.get(qualified_name, None)
+
+    def open_module_file(self, the_module: Module, parent_span: opentracing.Span) -> str:
+        if the_module.is_external:
+            return self.local_fs.open(the_module.path, parent_span)
+        else:
+            return self.fs.open(the_module.path, parent_span)

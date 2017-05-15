@@ -9,6 +9,7 @@ import opentracing
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
+from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 
 log = logging.getLogger(__name__)
@@ -28,6 +29,7 @@ class LangServer:
         self.root_path = None
         self.fs = None
         self.all_symbols = None
+        self.workspace = None
 
     def run(self):
         while self.running:
@@ -96,7 +98,7 @@ class LangServer:
                 self.conn.write_response(request["id"], resp)
 
     def new_script(self, *args, **kwargs):
-        return RemoteJedi(self.fs, self.root_path).new_script(*args, **kwargs)
+        return RemoteJedi(self.fs, self.workspace, self.root_path).new_script(*args, **kwargs)
 
     @staticmethod
     def goto_definitions(script, request):
@@ -130,6 +132,8 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
+        self.workspace = Workspace(self.fs, self.root_path)
+
         return {
             "capabilities": {
                 "hoverProvider": True,
@@ -157,7 +161,7 @@ class LangServer:
 
         defs = LangServer.goto_definitions(script, request)
 
-        # The code from this point onwards is modifed from the MIT licensed github.com/DonJayamanne/pythonVSCode
+        # The code from this point onwards is modified from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
         def generate_signature(completion):
             if completion.type in ['module'
