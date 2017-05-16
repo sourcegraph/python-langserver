@@ -71,6 +71,7 @@ class Workspace:
                 qualified_name = breadcrumb
             elif extension == ".egg":
                 # it's a Python egg; discard the shell and go deeper, which means using the breadcrumb as-is
+                # TODO: might need to process the config files if we run into edge cases
                 qualified_name = breadcrumb
             elif breadcrumb:
                 # otherwise add the filename to the breadcrumb
@@ -135,7 +136,7 @@ class Workspace:
             # that contain an '__init__.py'), not the names of *all* its enclosing folders. Hence, the following loop
             # only accumulates qualified name components until it encounters a folder that isn't in the pre-computed
             # set of packages.
-            while parent in package_paths:
+            while parent and parent != "/" and parent in package_paths:
                 parent, this = os.path.split(parent)
                 qualified_name_components.append(this)
             qualified_name_components.reverse()
