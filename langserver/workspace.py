@@ -101,14 +101,25 @@ class Workspace:
                 continue
 
     def index_project(self):
+        """
+        This method traverses all the project files (starting with self.PROJECT_ROOT) and indexes all the packages and
+        modules contained therein. It constructs a mapping from the fully qualified module name to a Module object
+        containing the metadata that Jedi needs. Because it only has a flat list of paths/uris to work with (as
+        opposed to being able to walk the file tree top-down), it does some extra work to figure out the qualified
+        names of each module.
+        """
         all_paths = list(self.fs.walk(self.PROJECT_ROOT))
 
+        # pre-compute the set of all packages in this project -- this will be useful a bit later, when trying to
+        # figure out each module's qualified name
         package_paths = {}
         for path in all_paths:
             folder, filename = os.path.split(path)
             if filename == "__init__.py":
                 package_paths[folder] = True
 
+        # now index all modules and packages, taking care to compute their qualified names correctly (can be tricky
+        # depending on how the folders are nested, and whether they have '__init__.py's or not
         for path in all_paths:
             folder, filename = os.path.split(path)
             basename, ext = os.path.splitext(filename)
@@ -120,7 +131,10 @@ class Workspace:
             else:
                 continue
             qualified_name_components = [this]
-            # qualified name should only contain folder names that are packages, not all folder names
+            # A module's qualified name should only contain the names of its enclosing folders that are packages (i.e.,
+            # that contain an '__init__.py'), not the names of *all* its enclosing folders. Hence, the following loop
+            # only accumulates qualified name components until it encounters a folder that isn't in the pre-computed
+            # set of packages.
             while parent in package_paths:
                 parent, this = os.path.split(parent)
                 qualified_name_components.append(this)
