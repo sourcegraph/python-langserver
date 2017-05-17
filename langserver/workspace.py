@@ -39,18 +39,24 @@ class Workspace:
 
         # TODO: THESE ARE HERE FOR EXPERIMENTAL PURPOSES; WE SHOULD PROVIDE CORRECT VALUES FOR EACH WORKSPACE ON INIT
         self.PYTHON_ROOT = "/usr/lib/python3.5"  # point to a Python installation of whatever version the project wants
-        self.PACKAGES_ROOT = "/usr/local/lib/python3.5/dist-packages"  # point to a workspace-specific packages folder
+        # self.PACKAGES_ROOT = "/usr/local/lib/python3.5/dist-packages"  # point to a workspace-specific packages folder
+        self.PACKAGES_ROOT = "/tmp/python-dist/lib/python3.5/site-packages"
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
         self.project = {}
         self.stdlib = {}
         self.dependencies = {}
+        self.exports = None
 
         # TODO: consider indexing modules in a separate process and setting a semaphore or something
         self.index_project()
         self.index_dependencies(self.stdlib, self.PYTHON_ROOT)
         self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
+        self.index_exported_packages()
+
+        for p in self.exports:
+            print("EXPORTED MODULE:", p)
 
     def index_dependencies(self, index: Dict[str, Module], library_path: str, breadcrumb: str=None):
         """
@@ -148,6 +154,19 @@ class Workspace:
             elif ext == ".py" and not basename.startswith("__") and not basename.endswith("__"):
                 the_module = Module(basename, path, False, qualified_name)
                 self.project[qualified_name] = the_module
+
+    def index_exported_packages(self):
+        """
+        This method compares the packages and modules in the project against the ones that are installed through the
+        dependencies, in order to determine which project modules are exported. This works because running a project's
+        setup script also installs the project itself in the dist-packages/site-packages folder. We need to determine
+        the exported modules in order to provide symbol descriptors for cross-repository operations.
+        """
+        # TODO: try to get exports from a more reliable place ... maybe hook into setup.py or something
+        project_things = set(self.project.keys())
+        library_things = set(self.dependencies.keys())
+        exported_things = project_things.intersection(library_things)
+        self.exports = exported_things
 
     def find_stdlib_module(self, qualified_name: str) -> Module:
         return self.stdlib.get(qualified_name, None)
