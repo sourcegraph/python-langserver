@@ -101,6 +101,21 @@ class LangServer:
         return RemoteJedi(self.fs, self.workspace, self.root_path).new_script(*args, **kwargs)
 
     @staticmethod
+    def goto_assignments(script, request):
+        parent_span = request["span"]
+        try:
+            with opentracing.start_child_span(
+                    parent_span, "Script.goto_assignments") as assn_span:
+                return script.goto_assignments()
+        except Exception as e:
+            # TODO return these errors using JSONRPC properly. Doing it this way
+            # initially for debugging purposes.
+            log.error("Failed goto_assignments for %s", request, exc_info=True)
+            parent_span.log_kv(
+                {"error", "Failed goto_assignments for %s" % request})
+            return []
+
+    @staticmethod
     def goto_definitions(script, request):
         parent_span = request["span"]
         try:
@@ -251,7 +266,9 @@ class LangServer:
             column=pos["character"],
             parent_span=parent_span)
 
-        defs = LangServer.goto_definitions(script, request)
+        # TODO: use more sophisticated logic here -- try goto_definitions, and if that fails (because it's trying to
+        # TODO: jump too far and hitting an external package), then fall back to goto_assignments
+        defs = LangServer.goto_assignments(script, request)
         locs = []
         for d in defs:
             if not d.is_definition() or d.line is None or d.column is None:
