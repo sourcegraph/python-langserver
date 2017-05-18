@@ -170,7 +170,7 @@ class LangServer:
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        parent_span = request["span"]
+        parent_span = request.get("span", None)
         source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
             return {}

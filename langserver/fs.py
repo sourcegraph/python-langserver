@@ -1,5 +1,6 @@
 import base64
 import os
+import os.path
 from abc import ABC, abstractmethod
 
 import opentracing
@@ -30,7 +31,7 @@ class FileSystem(ABC):
     def listdir(path: str, parent_span) -> List[Entry]:
         pass
 
-    def batch_open(self, paths):
+    def batch_open(self, paths, parent_span):
         for path in paths:
             yield (path, self.open(path))
 
@@ -121,3 +122,34 @@ class RemoteFileSystem(FileSystem):
                         pass
                     raise FileException(resp["error"])
                 yield (path, resp["result"]["text"])
+
+
+class InMemoryFileSystem(FileSystem):
+    def __init__(self, contents):
+        self.contents = contents
+
+    def open(self, path: str, parent_span) -> str:
+        if path in self.contents:
+            return self.contents[path]
+        raise FileException('File not found ' + path)
+
+    def listdir(self, path: str, parent_span) -> List[Entry]:
+        if path.endswith('/'):
+            path = path[:-1]
+        path_parts = path.split('/')
+        entries = {}
+        for p, v in self.contents.items():
+            if not p.startswith(path):
+                continue
+            p_parts = p.split('/')
+            if len(p_parts) <= len(path_parts):
+                continue
+            if p_parts[len(path_parts) - 1] != path_parts[-1]:
+                continue
+            name = p_parts[len(path_parts)]
+            if name in entries:
+                continue
+            is_dir = len(p_parts) > len(path_parts) + 1
+            size = 0 if is_dir else len(v)
+            entries[name] = Entry(name, is_dir, size)
+        return entries.values()
