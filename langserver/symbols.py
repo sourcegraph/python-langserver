@@ -168,7 +168,7 @@ class ImportVisitor:
             yield n.name
 
     def visit_ImportFrom(self, node, container):
-        if not node.level:
+        if not node.level:  # we only care about top-level imports, and definitely want to ignore internal imports
             yield node.module
 
     # Based on ast.NodeVisitor.visit
