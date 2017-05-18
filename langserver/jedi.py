@@ -30,8 +30,9 @@ class DummyFile:
 
 
 class RemoteJedi:
-    def __init__(self, fs, root_path):
+    def __init__(self, fs, workspace, root_path):
         self.fs = fs
+        self.workspace = workspace
         self.root_path = root_path
 
     def workspace_modules(self, path, parent_span) -> List[Module]:
@@ -96,27 +97,30 @@ class RemoteJedi:
                     "find_module_remote_callback") as find_module_span:
                 if trace:
                     print("find_module_remote", string, dir, fullname)
-                if type(
-                        dir
-                ) is list:  # TODO(renfred): handle list input for paths.
-                    dir = dir[0]
-                dir = dir or filepath.dirname(path)
-                modules = self.workspace_modules(dir, find_module_span)
-                for m in modules:
-                    if m.name == string:
-                        c = self.fs.open(m.path, find_module_span)
-                        is_package = m.is_package
-                        module_file = DummyFile(c)
-                        module_path = filepath.dirname(
-                            m.path) if is_package else m.path
-                        find_module_span.set_tag("module-path", module_path)
-                        find_module_span.set_tag("module-file", module_file)
-                        find_module_span.set_tag("is-package", is_package)
-                        return module_file, module_path, is_package
-                else:
-                    raise ImportError('Module "{}" not found in {}', string,
-                                      dir)
 
+                the_module = None
+
+                # default behavior is to search for built-ins first
+                if fullname:
+                    the_module = self.workspace.find_stdlib_module(fullname)
+
+                # after searching for built-ins, search the current project
+                if not the_module:
+                    the_module = self.workspace.find_project_module(fullname)
+
+                # finally, search 3rd party dependencies
+                if not the_module:
+                    the_module = self.workspace.find_external_module(fullname)
+
+                if not the_module:
+                    raise ImportError('Module "{}" not found in {}', string, dir)
+
+                is_package = the_module.is_package
+                module_file = DummyFile(self.workspace.open_module_file(the_module, find_module_span))
+                module_path = filepath.dirname(the_module.path) if is_package else the_module.path
+                return module_file, module_path, is_package
+
+        # TODO: update this to use the workspace's module indices
         def list_modules() -> List[str]:
             if trace:
                 print("list_modules")

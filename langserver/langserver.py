@@ -1,6 +1,7 @@
 import logging
 import socketserver
 import sys
+import os
 import traceback
 
 import lightstep
@@ -9,6 +10,7 @@ import opentracing
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
+from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 
 log = logging.getLogger(__name__)
@@ -28,6 +30,7 @@ class LangServer:
         self.root_path = None
         self.fs = None
         self.all_symbols = None
+        self.workspace = None
 
     def run(self):
         while self.running:
@@ -58,9 +61,12 @@ class LangServer:
             "initialize": self.serve_initialize,
             "textDocument/hover": self.serve_hover,
             "textDocument/definition": self.serve_definition,
+            "textDocument/xdefinition": self.serve_x_definition,
             "textDocument/references": self.serve_references,
-            "textDocument/documentSymbol": self.serve_documentSymbols,
+            "textDocument/documentSymbol": self.serve_document_symbols,
             "workspace/symbol": self.serve_symbols,
+            "workspace/xpackages": self.serve_x_packages,
+            "workspace/xdependencies": self.serve_x_dependencies,
             "$/cancelRequest": noop,
             "shutdown": noop,
             "exit": self.serve_exit,
@@ -96,7 +102,22 @@ class LangServer:
                 self.conn.write_response(request["id"], resp)
 
     def new_script(self, *args, **kwargs):
-        return RemoteJedi(self.fs, self.root_path).new_script(*args, **kwargs)
+        return RemoteJedi(self.fs, self.workspace, self.root_path).new_script(*args, **kwargs)
+
+    @staticmethod
+    def goto_assignments(script, request):
+        parent_span = request["span"]
+        try:
+            with opentracing.start_child_span(
+                    parent_span, "Script.goto_assignments") as assn_span:
+                return script.goto_assignments()
+        except Exception as e:
+            # TODO return these errors using JSONRPC properly. Doing it this way
+            # initially for debugging purposes.
+            log.error("Failed goto_assignments for %s", request, exc_info=True)
+            parent_span.log_kv(
+                {"error", "Failed goto_assignments for %s" % request})
+            return []
 
     @staticmethod
     def goto_definitions(script, request):
@@ -130,6 +151,11 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
+        self.workspace = Workspace(self.fs, self.root_path)
+
+        print("X-PACKAGES:", self.serve_x_packages(None))
+        print("X-DEPENDENCIES:", self.serve_x_dependencies(None))
+
         return {
             "capabilities": {
                 "hoverProvider": True,
@@ -155,9 +181,9 @@ class LangServer:
             column=pos["character"],
             parent_span=parent_span)
 
-        defs = LangServer.goto_definitions(script, request)
+        defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
 
-        # The code from this point onwards is modifed from the MIT licensed github.com/DonJayamanne/pythonVSCode
+        # The code from this point onwards is modified from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
         def generate_signature(completion):
             if completion.type in ['module'
@@ -233,6 +259,9 @@ class LangServer:
             return {}
 
     def serve_definition(self, request):
+        return list(filter(None, (d["location"] for d in self.serve_x_definition(request))))
+
+    def serve_x_definition(self, request):
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
@@ -247,26 +276,82 @@ class LangServer:
             column=pos["character"],
             parent_span=parent_span)
 
-        defs = LangServer.goto_definitions(script, request)
-        locs = []
+        results = []
+        defs = LangServer.goto_assignments(script, request) or LangServer.goto_definitions(script, request)
+        if not defs:
+            return results
+
         for d in defs:
-            if not d.is_definition() or d.line is None or d.column is None:
+
+            defining_module_path = d.module_path
+            defining_module = self.workspace.get_module_by_path(defining_module_path)
+
+            if not defining_module and (not d.is_definition() or d.line is None or d.column is None):
                 continue
-            locs.append({
-                # TODO(renfred) determine why d.module_path is empty.
-                "uri": "file://" + (d.module_path or path),
-                "range": {
-                    "start": {
-                        "line": d.line - 1,
-                        "character": d.column,
+
+            symbol_locator = {"symbol": None, "location": None}
+
+            if defining_module and defining_module.is_external and not defining_module.is_stdlib:
+                rel_path = os.path.relpath(defining_module_path, self.workspace.PACKAGES_ROOT)
+                print("**** WANT EXTERNAL DEFINITION", rel_path)
+                symbol_name = ""
+                symbol_kind = ""
+                if d.description:
+                    name_and_kind = d.description.split(" ")
+                    symbol_name = name_and_kind[1]
+                    symbol_kind = name_and_kind[0]
+                symbol_locator["symbol"] = {
+                    "package": {
+                        "name": defining_module.qualified_name.split(".")[0],
                     },
-                    "end": {
-                        "line": d.line - 1,
-                        "character": d.column + len(d.name),
+                    "name": symbol_name,
+                    "kind": symbol_kind,
+                    "path": rel_path
+                }
+                results.append(symbol_locator)
+
+            elif defining_module and defining_module.is_stdlib:
+                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_ROOT)
+                print("**** WANT STDLIB DEFINITION", rel_path)
+                # TODO: probably some more special casing to handle the layout of the CPython repository
+                symbol_name = ""
+                symbol_kind = ""
+                if d.description:
+                    name_and_kind = d.description.split(" ")
+                    symbol_name = name_and_kind[1]
+                    symbol_kind = name_and_kind[0]
+                symbol_locator["symbol"] = {
+                    "package": {
+                        "name": defining_module.qualified_name.split(".")[0],
                     },
-                },
-            })
-        return locs
+                    "name": symbol_name,
+                    "kind": symbol_kind,
+                    "path": rel_path
+                }
+                results.append(symbol_locator)
+
+            else:
+                print("**** GOT LOCAL DEFINITION FROM", d.module_path or path)
+                symbol_locator["location"] = {
+                    # TODO(renfred) determine why d.module_path is empty.
+                    "uri": "file://" + (d.module_path or path),
+                    "range": {
+                        "start": {
+                            "line": d.line - 1,
+                            "character": d.column,
+                        },
+                        "end": {
+                            "line": d.line - 1,
+                            "character": d.column + len(d.name),
+                        },
+                    },
+                }
+
+            print("**** DEFINITION:", symbol_locator)
+
+            results.append(symbol_locator)
+
+        return results
 
     def serve_references(self, request):
         params = request["params"]
@@ -313,6 +398,7 @@ class LangServer:
                                                  parent_span)
 
         params = request["params"]
+        print("**** WORKSPACE/SYMBOL REQUEST:", params)
         q, limit = params.get("query"), params.get("limit", 50)
         symbols = ((sym.score(q), sym) for sym in self.all_symbols)
         symbols = ((score, sym) for (score, sym) in symbols if score >= 0)
@@ -320,12 +406,18 @@ class LangServer:
 
         return [s.json_object() for (_, s) in symbols]
 
-    def serve_documentSymbols(self, request):
+    def serve_document_symbols(self, request):
         params = request["params"]
         path = path_from_uri(params["textDocument"]["uri"])
         parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         return [s.json_object() for s in extract_symbols(source, path)]
+
+    def serve_x_packages(self, request):
+        return self.workspace.get_package_information()
+
+    def serve_x_dependencies(self, request):
+        return self.workspace.get_dependencies()
 
     def serve_exit(self, request):
         self.running = False
