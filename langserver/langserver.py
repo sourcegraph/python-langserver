@@ -63,8 +63,10 @@ class LangServer:
             "textDocument/definition": self.serve_definition,
             "textDocument/xdefinition": self.serve_x_definition,
             "textDocument/references": self.serve_references,
-            "textDocument/documentSymbol": self.serve_documentSymbols,
+            "textDocument/documentSymbol": self.serve_document_symbols,
             "workspace/symbol": self.serve_symbols,
+            "workspace/xpackages": self.serve_x_packages,
+            "workspace/xdependencies": self.serve_x_dependencies,
             "$/cancelRequest": noop,
             "shutdown": noop,
             "exit": self.serve_exit,
@@ -150,6 +152,9 @@ class LangServer:
             self.fs = LocalFileSystem()
 
         self.workspace = Workspace(self.fs, self.root_path)
+
+        print("X-PACKAGES:", self.serve_x_packages(None))
+        print("X-DEPENDENCIES:", self.serve_x_dependencies(None))
 
         return {
             "capabilities": {
@@ -272,8 +277,6 @@ class LangServer:
             parent_span=parent_span)
 
         results = []
-        # TODO: use more sophisticated logic here -- try goto_definitions, and if that fails (because it's trying to
-        # TODO: jump too far and hitting an external package), then fall back to goto_assignments
         defs = LangServer.goto_assignments(script, request) or LangServer.goto_definitions(script, request)
         if not defs:
             return results
@@ -311,7 +314,20 @@ class LangServer:
                 rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_ROOT)
                 print("**** WANT STDLIB DEFINITION", rel_path)
                 # TODO: probably some more special casing to handle the layout of the CPython repository
-                symbol_locator["symbol"] = {"package": defining_module.qualified_name, "path": rel_path}
+                symbol_name = ""
+                symbol_kind = ""
+                if d.description:
+                    name_and_kind = d.description.split(" ")
+                    symbol_name = name_and_kind[1]
+                    symbol_kind = name_and_kind[0]
+                symbol_locator["symbol"] = {
+                    "package": {
+                        "name": defining_module.qualified_name.split(".")[0],
+                    },
+                    "name": symbol_name,
+                    "kind": symbol_kind,
+                    "path": rel_path
+                }
                 results.append(symbol_locator)
 
             else:
@@ -331,7 +347,7 @@ class LangServer:
                     },
                 }
 
-            print("**** DEFINITION:", d.desc_with_module, symbol_locator)
+            print("**** DEFINITION:", symbol_locator)
 
             results.append(symbol_locator)
 
@@ -390,12 +406,18 @@ class LangServer:
 
         return [s.json_object() for (_, s) in symbols]
 
-    def serve_documentSymbols(self, request):
+    def serve_document_symbols(self, request):
         params = request["params"]
         path = path_from_uri(params["textDocument"]["uri"])
         parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         return [s.json_object() for s in extract_symbols(source, path)]
+
+    def serve_x_packages(self, request):
+        return self.workspace.get_package_information()
+
+    def serve_x_dependencies(self, request):
+        return self.workspace.get_dependencies()
 
     def serve_exit(self, request):
         self.running = False

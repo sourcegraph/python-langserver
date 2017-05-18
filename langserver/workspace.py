@@ -39,6 +39,7 @@ class Workspace:
 
     def __init__(self, fs: FileSystem, project_root: str):
 
+        self.project_packages = set()
         self.PROJECT_ROOT = project_root
 
         # TODO: THESE ARE HERE FOR EXPERIMENTAL PURPOSES; WE SHOULD PROVIDE CORRECT VALUES FOR EACH WORKSPACE ON INIT
@@ -51,37 +52,14 @@ class Workspace:
         self.project = {}
         self.stdlib = {}
         self.dependencies = {}
-        self.exports = None
         self.module_paths = {}
 
         # TODO: consider indexing modules in a separate process and setting a semaphore or something
         self.index_project()
-        self.index_dependencies(self.stdlib, self.PYTHON_ROOT, True)
+        self.index_dependencies(self.stdlib, self.PYTHON_ROOT, is_stdlib=True)
         self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
-        self.index_exports()
 
-        for k, v in self.dependencies.items():
-            print("**** DEPENDENCY PATH:", v.path)
-
-        print("****")
-
-        for p in self.module_paths:
-            print("**** REVERSE-MAPPED MODULE PATH:", p)
-
-        print("****")
-
-        for p in self.exports:
-            print("**** EXPORT:", p)
-
-        print("****")
-
-        for p in Workspace.get_top_level_package_names(self.exports):
-            print("**** TOP LEVEL PROJECT EXPORTS:", p)
-
-        print("****")
-
-        for p in self.get_dependencies():
-            print("**** TOP LEVEL DEPENDENCY:", p)
+        print("**** THIS PROJECT'S PACKAGES:", self.project_packages)
 
     def index_dependencies(self,
                            index: Dict[str, Module],
@@ -174,6 +152,11 @@ class Workspace:
             basename, ext = os.path.splitext(filename)
             if filename == "__init__.py":
                 parent, this = os.path.split(folder)
+                # check if this is a root package in this project
+                if os.path.dirname(parent).endswith("/"):
+                    parent_parent = os.path.basename(parent)
+                    if parent_parent:
+                        self.project_packages.add(os.path.basename(parent))
             elif filename.endswith(".py"):
                 parent = folder
                 this = basename
@@ -199,19 +182,6 @@ class Workspace:
                 self.project[qualified_name] = the_module
                 self.module_paths[the_module.path] = the_module
 
-    def index_exports(self):
-        """
-        This method compares the packages and modules in the project against the ones that are installed through the
-        dependencies, in order to determine which project modules are exported. This works because running a project's
-        setup script also installs the project itself in the dist-packages/site-packages folder. We need to determine
-        the exported modules in order to provide symbol descriptors for cross-repository operations.
-        """
-        # TODO: try to get exports from a more reliable place ... maybe hook into setup.py or something
-        project_things = set(self.project.keys())
-        library_things = set(self.dependencies.keys())
-        exported_things = project_things.intersection(library_things)
-        self.exports = exported_things
-
     def find_stdlib_module(self, qualified_name: str) -> Module:
         return self.stdlib.get(qualified_name, None)
 
@@ -230,10 +200,17 @@ class Workspace:
     def get_module_by_path(self, path: str) -> Module:
         return self.module_paths.get(path, None)
 
-    def get_dependencies(self) -> Set[str]:
-        top_level_external_packages = Workspace.get_top_level_package_names(self.dependencies)
-        top_level_project_exports = Workspace.get_top_level_package_names(self.exports)
-        return top_level_external_packages.difference(top_level_project_exports)
+    def get_dependencies(self) -> list:
+        dependency_names = Workspace.get_top_level_package_names(self.dependencies) - self.project_packages
+        return [{"attributes": {"name": n}} for n in dependency_names]
+
+    def get_package_information(self) -> list:
+        return [
+            {
+                "package": {"name": p},
+                "dependencies": self.get_dependencies()  # multiple packages in the project share the same dependencies
+            } for p in self.project_packages
+        ]
 
     @staticmethod
     def get_top_level_package_names(index: Dict[str, Module]) -> Set[str]:
