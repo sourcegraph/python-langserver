@@ -11,7 +11,7 @@ from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .workspace import Workspace
-from .symbols import extract_symbols, workspace_symbols
+from .symbols import extract_symbols, workspace_symbols, get_imports
 
 log = logging.getLogger(__name__)
 
@@ -153,8 +153,11 @@ class LangServer:
 
         self.workspace = Workspace(self.fs, self.root_path)
 
-        print("X-PACKAGES:", self.serve_x_packages(None))
-        print("X-DEPENDENCIES:", self.serve_x_dependencies(None))
+        print("**** X-PACKAGES:", self.serve_x_packages(None))
+        print("**** X-DEPENDENCIES:", self.serve_x_dependencies(None))
+
+        for i in get_imports(self.fs, self.root_path, request["span"]):
+            print("**** IMPORT:", i)
 
         return {
             "capabilities": {

@@ -202,7 +202,7 @@ class Workspace:
 
     def get_dependencies(self) -> list:
         dependency_names = Workspace.get_top_level_package_names(self.dependencies) - self.project_packages
-        return [{"attributes": {"name": n}} for n in dependency_names]
+        return [{"attributes": {"name": n}} for n in dependency_names]  # TODO: add the stdlib repo url
 
     def get_package_information(self) -> list:
         return [
