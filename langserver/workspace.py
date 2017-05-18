@@ -1,5 +1,5 @@
 from .fs import FileSystem, LocalFileSystem
-from typing import Dict
+from typing import Dict, Set
 import os
 import os.path
 import opentracing
@@ -17,15 +17,19 @@ class DummyFile:
 
 
 class Module:
-    def __init__(self, name, path, is_package=False, qualified_name=None, is_external=False):
+    def __init__(self,
+                 name: str,
+                 qualified_name: str,
+                 path: str,
+                 is_package: bool=False,
+                 is_external: bool=False,
+                 is_stdlib: bool=False):
         self.name = name
-        if qualified_name:
-            self.qualified_name = qualified_name
-        else:
-            self.qualified_name = name
+        self.qualified_name = qualified_name
         self.path = path
         self.is_package = is_package
         self.is_external = is_external
+        self.is_stdlib = is_stdlib
 
     def __repr__(self):
         return "PythonModule({}, {})".format(self.name, self.path)
@@ -48,17 +52,42 @@ class Workspace:
         self.stdlib = {}
         self.dependencies = {}
         self.exports = None
+        self.module_paths = {}
 
         # TODO: consider indexing modules in a separate process and setting a semaphore or something
         self.index_project()
-        self.index_dependencies(self.stdlib, self.PYTHON_ROOT)
+        self.index_dependencies(self.stdlib, self.PYTHON_ROOT, True)
         self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
-        self.index_exported_packages()
+        self.index_exports()
+
+        for k, v in self.dependencies.items():
+            print("**** DEPENDENCY PATH:", v.path)
+
+        print("****")
+
+        for p in self.module_paths:
+            print("**** REVERSE-MAPPED MODULE PATH:", p)
+
+        print("****")
 
         for p in self.exports:
-            print("EXPORTED MODULE:", p)
+            print("**** EXPORT:", p)
 
-    def index_dependencies(self, index: Dict[str, Module], library_path: str, breadcrumb: str=None):
+        print("****")
+
+        for p in Workspace.get_top_level_package_names(self.exports):
+            print("**** TOP LEVEL PROJECT EXPORTS:", p)
+
+        print("****")
+
+        for p in self.get_dependencies():
+            print("**** TOP LEVEL DEPENDENCY:", p)
+
+    def index_dependencies(self,
+                           index: Dict[str, Module],
+                           library_path: str,
+                           is_stdlib: bool=False,
+                           breadcrumb: str=None):
         """
         Given a root library path (e.g., the Python root path or the dist-packages root path), this method traverses
         it recursively and indexes all the packages and modules contained therein. It constructs a mapping from the
@@ -66,6 +95,7 @@ class Workspace:
 
         :param index: the dictionary that should be used to store this index (will be modified)
         :param library_path: the root path containing the modules and packages to be indexed
+        :param is_stdlib: flag indicating whether this invocation is indexing the standard library
         :param breadcrumb: should be omitted by the caller; this method uses it to keep track of the fully qualified
         module name
         """
@@ -87,14 +117,20 @@ class Workspace:
 
             if os.path.isdir(os.path.join(library_path, filename)):
                 # recursively index the folder
-                self.index_dependencies(index, os.path.join(library_path, filename), qualified_name)
+                self.index_dependencies(index, os.path.join(library_path, filename), is_stdlib, qualified_name)
                 continue
 
             if filename == "__init__.py":
                 # we're already inside a package
                 module_name = os.path.basename(library_path)
-                the_module = Module(module_name, os.path.join(library_path, filename), True, qualified_name, True)
+                the_module = Module(module_name,
+                                    qualified_name,
+                                    os.path.join(library_path, filename),
+                                    True,
+                                    True,
+                                    is_stdlib)
                 index[qualified_name] = the_module
+                self.module_paths[the_module.path] = the_module
                 continue
 
             if extension != ".py" or basename.startswith("__") and basename.endswith("__"):
@@ -103,8 +139,14 @@ class Workspace:
 
             if extension == ".py":
                 # just a regular non-package module
-                the_module = Module(basename, os.path.join(library_path, filename), False, qualified_name, True)
+                the_module = Module(basename,
+                                    qualified_name,
+                                    os.path.join(library_path, filename),
+                                    False,
+                                    True,
+                                    is_stdlib)
                 index[qualified_name] = the_module
+                self.module_paths[the_module.path] = the_module
                 continue
 
     def index_project(self):
@@ -149,13 +191,15 @@ class Workspace:
             qualified_name = ".".join(qualified_name_components)
             if filename == "__init__.py":
                 module_name = os.path.basename(folder)
-                the_module = Module(module_name, path, True, qualified_name)
+                the_module = Module(module_name, qualified_name, path, True)
                 self.project[qualified_name] = the_module
+                self.module_paths[the_module.path] = the_module
             elif ext == ".py" and not basename.startswith("__") and not basename.endswith("__"):
-                the_module = Module(basename, path, False, qualified_name)
+                the_module = Module(basename, qualified_name, path)
                 self.project[qualified_name] = the_module
+                self.module_paths[the_module.path] = the_module
 
-    def index_exported_packages(self):
+    def index_exports(self):
         """
         This method compares the packages and modules in the project against the ones that are installed through the
         dependencies, in order to determine which project modules are exported. This works because running a project's
@@ -182,3 +226,15 @@ class Workspace:
             return self.local_fs.open(the_module.path, parent_span)
         else:
             return self.fs.open(the_module.path, parent_span)
+
+    def get_module_by_path(self, path: str) -> Module:
+        return self.module_paths.get(path, None)
+
+    def get_dependencies(self) -> Set[str]:
+        top_level_external_packages = Workspace.get_top_level_package_names(self.dependencies)
+        top_level_project_exports = Workspace.get_top_level_package_names(self.exports)
+        return top_level_external_packages.difference(top_level_project_exports)
+
+    @staticmethod
+    def get_top_level_package_names(index: Dict[str, Module]) -> Set[str]:
+        return {name.split(".")[0] for name in index}
