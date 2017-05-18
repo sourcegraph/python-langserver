@@ -132,12 +132,13 @@ def _imap_extract_exported_symbols(args):
 
 
 def get_imports(fs, root_path, parent_span):
+    # TODO: consider crawling over the main project files only; ignore examples, tests, etc
     py_paths = (path for path in fs.walk(root_path) if path.endswith(".py"))
     py_srces = fs.batch_open(py_paths, parent_span)
     with multiprocessing.Pool() as p:
         import_chunks = p.imap_unordered(
             _imap_extract_imports, py_srces, chunksize=10)
-        imports = set(itertools.chain.from_iterable(import_chunks))
+        imports = {i.split(".")[0] for i in itertools.chain.from_iterable(import_chunks)}
     return imports
 
 
