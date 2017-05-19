@@ -1,8 +1,8 @@
 # Python language server
 
-This is a language server for Python that adheres to the [Language Server Protocol (LSP)](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md). It uses [Jedi](https://github.com/davidhalter/jedi) to perform source code analysis. Python versions 2.x and 3.x are supported.
+**Note: This language server is currently in the early stages of active development and not all features are yet supported. We encourage desktop users to use https://github.com/palantir/python-language-server instead.**
 
-**Note: this language server is currently in the early stages of active development and not all features are yet supported.**
+This is a language server for Python that adheres to the [Language Server Protocol (LSP)](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md). It uses [Jedi](https://github.com/davidhalter/jedi) to perform source code analysis. Python versions 2.x and 3.x are supported.
 
 ## Getting started
 
