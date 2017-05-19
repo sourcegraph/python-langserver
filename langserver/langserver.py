@@ -11,7 +11,8 @@ from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .workspace import Workspace
-from .symbols import extract_symbols, workspace_symbols, get_imports
+from .symbols import extract_symbols, workspace_symbols
+from .imports import get_imports
 
 log = logging.getLogger(__name__)
 
