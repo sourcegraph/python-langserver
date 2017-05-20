@@ -10,9 +10,8 @@ import opentracing
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .workspace import Workspace
+from .workspace import Workspace, STDLIB_SRC_PATH
 from .symbols import extract_symbols, workspace_symbols
-from .imports import get_imports
 
 log = logging.getLogger(__name__)
 
@@ -152,13 +151,10 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        self.workspace = Workspace(self.fs, self.root_path)
+        self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
 
-        print("**** X-PACKAGES:", self.serve_x_packages(None))
-        print("**** X-DEPENDENCIES:", self.serve_x_dependencies(None))
-
-        for i in get_imports(self.fs, self.root_path, request["span"]):
-            print("**** IMPORT:", i)
+        print("**** X-PACKAGES:", self.serve_x_packages(request))
+        print("**** X-DEPENDENCIES:", self.serve_x_dependencies(request))
 
         return {
             "capabilities": {
@@ -317,7 +313,6 @@ class LangServer:
             elif defining_module and defining_module.is_stdlib:
                 rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_ROOT)
                 print("**** WANT STDLIB DEFINITION", rel_path)
-                # TODO: probably some more special casing to handle the layout of the CPython repository
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
@@ -326,11 +321,11 @@ class LangServer:
                     symbol_kind = name_and_kind[0]
                 symbol_locator["symbol"] = {
                     "package": {
-                        "name": defining_module.qualified_name.split(".")[0],
+                        "name": "cpython",
                     },
                     "name": symbol_name,
                     "kind": symbol_kind,
-                    "path": rel_path
+                    "path": os.path.join(STDLIB_SRC_PATH, rel_path)
                 }
                 results.append(symbol_locator)
 
@@ -418,10 +413,10 @@ class LangServer:
         return [s.json_object() for s in extract_symbols(source, path)]
 
     def serve_x_packages(self, request):
-        return self.workspace.get_package_information()
+        return self.workspace.get_package_information(request["span"])
 
     def serve_x_dependencies(self, request):
-        return self.workspace.get_dependencies()
+        return self.workspace.get_dependencies(request["span"])
 
     def serve_exit(self, request):
         self.running = False

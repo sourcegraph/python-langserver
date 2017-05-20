@@ -100,8 +100,9 @@ class RemoteJedi:
 
                 the_module = None
 
-                # default behavior is to search for built-ins first
-                if fullname:
+                # TODO: move this bit of logic into the Workspace?
+                # default behavior is to search for built-ins first, but skip this if we're actually in the stdlib repo
+                if fullname and not self.workspace.is_stdlib:
                     the_module = self.workspace.find_stdlib_module(fullname)
 
                 # after searching for built-ins, search the current project

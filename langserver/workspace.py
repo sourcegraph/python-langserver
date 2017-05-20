@@ -1,5 +1,7 @@
 from .fs import FileSystem, LocalFileSystem
+from .imports import get_imports
 from typing import Dict, Set
+import sys
 import os
 import os.path
 import opentracing
@@ -35,17 +37,36 @@ class Module:
         return "PythonModule({}, {})".format(self.name, self.path)
 
 
+STDLIB_REPO_URL = "git://github.com/python/cpython"
+STDLIB_SRC_PATH = "Lib"
+
+
 class Workspace:
 
-    def __init__(self, fs: FileSystem, project_root: str):
+    def __init__(self, fs: FileSystem, project_root: str, original_root_path: str= ""):  # TODO: get url from init request
 
         self.project_packages = set()
         self.PROJECT_ROOT = project_root
+        self.repo = None
+        self.hash = None
 
-        # TODO: THESE ARE HERE FOR EXPERIMENTAL PURPOSES; WE SHOULD PROVIDE CORRECT VALUES FOR EACH WORKSPACE ON INIT
-        self.PYTHON_ROOT = "/usr/lib/python3.5"  # point to a Python installation of whatever version the project wants
-        # self.PACKAGES_ROOT = "/usr/local/lib/python3.5/dist-packages"  # point to a workspace-specific packages folder
-        self.PACKAGES_ROOT = "/tmp/python-dist/lib/python3.5/site-packages"
+        if original_root_path.startswith("git://") and "?" in original_root_path:
+            repo_and_hash = original_root_path.split("?")
+            self.repo = repo_and_hash[0]
+            self.hash = repo_and_hash[1]
+
+        self.is_stdlib = (self.repo == STDLIB_REPO_URL)
+
+        if original_root_path.startswith("git://"):
+            original_root_path = original_root_path[6:]
+
+        # turn the original root path into something that can be used as a file/path name or cache key
+        self.key = original_root_path.replace("/", ".").replace("\\", ".")
+        if self.hash:
+            self.key = ".".join((self.key, self.hash))
+
+        self.PYTHON_ROOT = "/usr/lib/python3.5"  # TODO: point to whatever Python version the project wants
+        self.PACKAGES_ROOT = "/tmp/python-dist/lib/python3.5/site-packages"  # TODO: point to workspace-specific folder
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
@@ -54,12 +75,14 @@ class Workspace:
         self.dependencies = {}
         self.module_paths = {}
 
-        # TODO: consider indexing modules in a separate process and setting a semaphore or something
         self.index_project()
-        self.index_dependencies(self.stdlib, self.PYTHON_ROOT, is_stdlib=True)
-        self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
 
-        print("**** THIS PROJECT'S PACKAGES:", self.project_packages)
+        for n in sys.builtin_module_names:
+            self.stdlib[n] = None  # TODO: figure out how to provide code intelligence for compiled-in modules
+        self.index_dependencies(self.stdlib, self.PYTHON_ROOT, is_stdlib=True)
+
+        # TODO: do this part on-demand
+        self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
 
     def index_dependencies(self,
                            index: Dict[str, Module],
@@ -96,9 +119,7 @@ class Workspace:
             if os.path.isdir(os.path.join(library_path, filename)):
                 # recursively index the folder
                 self.index_dependencies(index, os.path.join(library_path, filename), is_stdlib, qualified_name)
-                continue
-
-            if filename == "__init__.py":
+            elif filename == "__init__.py":
                 # we're already inside a package
                 module_name = os.path.basename(library_path)
                 the_module = Module(module_name,
@@ -109,13 +130,7 @@ class Workspace:
                                     is_stdlib)
                 index[qualified_name] = the_module
                 self.module_paths[the_module.path] = the_module
-                continue
-
-            if extension != ".py" or basename.startswith("__") and basename.endswith("__"):
-                # not a relevant file
-                continue
-
-            if extension == ".py":
+            elif extension == ".py":
                 # just a regular non-package module
                 the_module = Module(basename,
                                     qualified_name,
@@ -125,7 +140,6 @@ class Workspace:
                                     is_stdlib)
                 index[qualified_name] = the_module
                 self.module_paths[the_module.path] = the_module
-                continue
 
     def index_project(self):
         """
@@ -200,15 +214,26 @@ class Workspace:
     def get_module_by_path(self, path: str) -> Module:
         return self.module_paths.get(path, None)
 
-    def get_dependencies(self) -> list:
-        dependency_names = Workspace.get_top_level_package_names(self.dependencies) - self.project_packages
-        return [{"attributes": {"name": n}} for n in dependency_names]  # TODO: add the stdlib repo url
+    def get_dependencies(self, parent_span: opentracing.Span) -> list:
+        top_level_stdlib = {p.split(".")[0] for p in self.stdlib}
+        top_level_imports = get_imports(self.fs, self.PROJECT_ROOT, parent_span)
+        stdlib_imports = top_level_imports & top_level_stdlib
+        external_imports = top_level_imports - top_level_stdlib - self.project_packages
+        dependencies = [{"attributes": {"name": n}} for n in external_imports]
+        if stdlib_imports:
+            dependencies.append({
+                "attributes": {
+                    "name": "cpython",
+                    "repoURL": "git://github.com/python/cpython"
+                }
+            })
+        return dependencies
 
-    def get_package_information(self) -> list:
+    def get_package_information(self, parent_span: opentracing.Span) -> list:
         return [
             {
                 "package": {"name": p},
-                "dependencies": self.get_dependencies()  # multiple packages in the project share the same dependencies
+                "dependencies": self.get_dependencies(parent_span)  # multiple packages in the project share the same dependencies
             } for p in self.project_packages
         ]
 
