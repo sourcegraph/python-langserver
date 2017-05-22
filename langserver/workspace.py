@@ -1,9 +1,11 @@
 from .fs import FileSystem, LocalFileSystem
 from .imports import get_imports
+from .fetch import fetch_dependency
 from typing import Dict, Set
 import sys
 import os
 import os.path
+import threading
 import opentracing
 
 
@@ -43,7 +45,7 @@ STDLIB_SRC_PATH = "Lib"
 
 class Workspace:
 
-    def __init__(self, fs: FileSystem, project_root: str, original_root_path: str= ""):  # TODO: get url from init request
+    def __init__(self, fs: FileSystem, project_root: str, original_root_path: str= ""):
 
         self.project_packages = set()
         self.PROJECT_ROOT = project_root
@@ -53,6 +55,7 @@ class Workspace:
         if original_root_path.startswith("git://") and "?" in original_root_path:
             repo_and_hash = original_root_path.split("?")
             self.repo = repo_and_hash[0]
+            original_root_path = self.repo
             self.hash = repo_and_hash[1]
 
         self.is_stdlib = (self.repo == STDLIB_REPO_URL)
@@ -66,7 +69,7 @@ class Workspace:
             self.key = ".".join((self.key, self.hash))
 
         self.PYTHON_ROOT = "/usr/lib/python3.5"  # TODO: point to whatever Python version the project wants
-        self.PACKAGES_ROOT = "/tmp/python-dist/lib/python3.5/site-packages"  # TODO: point to workspace-specific folder
+        self.PACKAGES_ROOT = os.path.join("python-langserver-cache", self.key)
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
@@ -74,15 +77,18 @@ class Workspace:
         self.stdlib = {}
         self.dependencies = {}
         self.module_paths = {}
+        self.indexed_folders = set()
+        self.indexing_lock = threading.Lock()
+        self.fetched = set()
 
         self.index_project()
 
         for n in sys.builtin_module_names:
-            self.stdlib[n] = None  # TODO: figure out how to provide code intelligence for compiled-in modules
+            self.stdlib[n] = "native"  # TODO: figure out how to provide code intelligence for compiled-in modules
         self.index_dependencies(self.stdlib, self.PYTHON_ROOT, is_stdlib=True)
 
         # TODO: do this part on-demand
-        self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
+        # self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
 
     def index_dependencies(self,
                            index: Dict[str, Module],
@@ -129,7 +135,7 @@ class Workspace:
                                     True,
                                     is_stdlib)
                 index[qualified_name] = the_module
-                self.module_paths[the_module.path] = the_module
+                self.module_paths[os.path.abspath(the_module.path)] = the_module
             elif extension == ".py":
                 # just a regular non-package module
                 the_module = Module(basename,
@@ -139,7 +145,7 @@ class Workspace:
                                     True,
                                     is_stdlib)
                 index[qualified_name] = the_module
-                self.module_paths[the_module.path] = the_module
+                self.module_paths[os.path.abspath(the_module.path)] = the_module
 
     def index_project(self):
         """
@@ -203,6 +209,19 @@ class Workspace:
         return self.project.get(qualified_name, None)
 
     def find_external_module(self, qualified_name: str) -> Module:
+        if qualified_name.split(".")[0] not in self.fetched:
+            self.indexing_lock.acquire()
+            self.fetched.add(qualified_name)
+            fetch_dependency(qualified_name.split(".")[0], self.PACKAGES_ROOT)
+            for path in os.listdir(self.PACKAGES_ROOT):
+                if path not in self.indexed_folders:
+                    if Workspace.check_for_package(os.path.join(self.PACKAGES_ROOT, path)):
+                        breadcrumb = path
+                    else:
+                        breadcrumb = None
+                    self.index_dependencies(self.dependencies, os.path.join(self.PACKAGES_ROOT, path), breadcrumb=breadcrumb)
+                    self.indexed_folders.add(path)
+            self.indexing_lock.release()
         return self.dependencies.get(qualified_name, None)
 
     def open_module_file(self, the_module: Module, parent_span: opentracing.Span) -> str:
@@ -236,6 +255,10 @@ class Workspace:
                 "dependencies": self.get_dependencies(parent_span)  # multiple packages in the project share the same dependencies
             } for p in self.project_packages
         ]
+
+    @staticmethod
+    def check_for_package(path: str) -> bool:
+        return os.path.isdir(path) and "__init__.py" in os.listdir(path)
 
     @staticmethod
     def get_top_level_package_names(index: Dict[str, Module]) -> Set[str]:

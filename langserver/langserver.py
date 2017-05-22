@@ -153,9 +153,6 @@ class LangServer:
 
         self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
 
-        print("**** X-PACKAGES:", self.serve_x_packages(request))
-        print("**** X-DEPENDENCIES:", self.serve_x_dependencies(request))
-
         return {
             "capabilities": {
                 "hoverProvider": True,
@@ -292,8 +289,9 @@ class LangServer:
             symbol_locator = {"symbol": None, "location": None}
 
             if defining_module and defining_module.is_external and not defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path, self.workspace.PACKAGES_ROOT)
-                print("**** WANT EXTERNAL DEFINITION", rel_path)
+                # the module path doesn't map onto the repository structure because we're not fully installing
+                # dependency packages, so don't include it in the symbol descriptor
+                filename = os.path.basename(defining_module_path)
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
@@ -305,14 +303,14 @@ class LangServer:
                         "name": defining_module.qualified_name.split(".")[0],
                     },
                     "name": symbol_name,
+                    "container": defining_module.qualified_name,
                     "kind": symbol_kind,
-                    "path": rel_path
+                    "file": filename
                 }
-                results.append(symbol_locator)
 
             elif defining_module and defining_module.is_stdlib:
                 rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_ROOT)
-                print("**** WANT STDLIB DEFINITION", rel_path)
+                filename = os.path.basename(defining_module_path)
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
@@ -324,13 +322,13 @@ class LangServer:
                         "name": "cpython",
                     },
                     "name": symbol_name,
+                    "container": defining_module.qualified_name,
                     "kind": symbol_kind,
-                    "path": os.path.join(STDLIB_SRC_PATH, rel_path)
+                    "path": os.path.join(STDLIB_SRC_PATH, rel_path),
+                    "file": filename
                 }
-                results.append(symbol_locator)
 
             else:
-                print("**** GOT LOCAL DEFINITION FROM", d.module_path or path)
                 symbol_locator["location"] = {
                     # TODO(renfred) determine why d.module_path is empty.
                     "uri": "file://" + (d.module_path or path),
@@ -345,8 +343,6 @@ class LangServer:
                         },
                     },
                 }
-
-            print("**** DEFINITION:", symbol_locator)
 
             results.append(symbol_locator)
 

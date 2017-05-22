@@ -105,6 +105,9 @@ class RemoteJedi:
                 if fullname and not self.workspace.is_stdlib:
                     the_module = self.workspace.find_stdlib_module(fullname)
 
+                if the_module == "native":  # break if we get a native module
+                    raise ImportError('Module "{}" not found in {}', string, dir)
+
                 # after searching for built-ins, search the current project
                 if not the_module:
                     the_module = self.workspace.find_project_module(fullname)
