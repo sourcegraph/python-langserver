@@ -37,9 +37,11 @@ class LangServer:
         while self.running:
             try:
                 request = self.conn.read_message()
+                self.handle(request)
             except EOFError:
                 break
-            self.handle(request)
+            except Exception as e:
+                log.error("Unexpected error: %s", e, exc_info=True)
 
     def handle(self, request):
         if "meta" in request:
