@@ -89,10 +89,12 @@ class Workspace:
             self.stdlib[n] = "native"  # TODO: figure out how to provide code intelligence for compiled-in modules
         self.index_dependencies(self.stdlib, self.PYTHON_ROOT, is_stdlib=True)
 
-        # if the dependencies are already cached from a previous session, go ahead and index them, otherwise let them
-        # be fetched on-demand
+        # if the dependencies are already cached from a previous session, go ahead and index them, otherwise just
+        # create the folder and let them be fetched on-demand
         if os.path.exists(self.PACKAGES_ROOT):
             self.index_external_modules()
+        else:
+            os.makedirs(self.PACKAGES_ROOT)
 
     def index_dependencies(self,
                            index: Dict[str, Module],
