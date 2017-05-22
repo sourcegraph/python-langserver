@@ -13,6 +13,7 @@ from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .workspace import Workspace, STDLIB_SRC_PATH
 from .symbols import extract_symbols, workspace_symbols
 
+
 log = logging.getLogger(__name__)
 
 

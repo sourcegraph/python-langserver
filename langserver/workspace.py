@@ -77,8 +77,10 @@ class Workspace:
         self.stdlib = {}
         self.dependencies = {}
         self.module_paths = {}
+        # keep track of which package folders have been indexed, since we fetch and index new folders on-demand
         self.indexed_folders = set()
         self.indexing_lock = threading.Lock()
+        # keep track of which packages we've tried to fetch, so we don't keep trying if they were unfetchable
         self.fetched = set()
 
         self.index_project()
@@ -87,8 +89,10 @@ class Workspace:
             self.stdlib[n] = "native"  # TODO: figure out how to provide code intelligence for compiled-in modules
         self.index_dependencies(self.stdlib, self.PYTHON_ROOT, is_stdlib=True)
 
-        # TODO: do this part on-demand
-        # self.index_dependencies(self.dependencies, self.PACKAGES_ROOT)
+        # if the dependencies are already cached from a previous session, go ahead and index them, otherwise let them
+        # be fetched on-demand
+        if os.path.exists(self.PACKAGES_ROOT):
+            self.index_external_modules()
 
     def index_dependencies(self,
                            index: Dict[str, Module],
@@ -136,6 +140,7 @@ class Workspace:
                                     is_stdlib)
                 index[qualified_name] = the_module
                 self.module_paths[os.path.abspath(the_module.path)] = the_module
+                self.fetched.add(module_name)
             elif extension == ".py":
                 # just a regular non-package module
                 the_module = Module(basename,
@@ -146,6 +151,7 @@ class Workspace:
                                     is_stdlib)
                 index[qualified_name] = the_module
                 self.module_paths[os.path.abspath(the_module.path)] = the_module
+                self.fetched.add(basename)
 
     def index_project(self):
         """
@@ -209,20 +215,26 @@ class Workspace:
         return self.project.get(qualified_name, None)
 
     def find_external_module(self, qualified_name: str) -> Module:
-        if qualified_name.split(".")[0] not in self.fetched:
+        package_name = qualified_name.split(".")[0]
+        if package_name not in self.fetched:
             self.indexing_lock.acquire()
-            self.fetched.add(qualified_name)
-            fetch_dependency(qualified_name.split(".")[0], self.PACKAGES_ROOT)
-            for path in os.listdir(self.PACKAGES_ROOT):
-                if path not in self.indexed_folders:
-                    if Workspace.check_for_package(os.path.join(self.PACKAGES_ROOT, path)):
-                        breadcrumb = path
-                    else:
-                        breadcrumb = None
-                    self.index_dependencies(self.dependencies, os.path.join(self.PACKAGES_ROOT, path), breadcrumb=breadcrumb)
-                    self.indexed_folders.add(path)
+            self.fetched.add(package_name)
+            fetch_dependency(package_name, self.PACKAGES_ROOT)
+            self.index_external_modules()
             self.indexing_lock.release()
         return self.dependencies.get(qualified_name, None)
+
+    def index_external_modules(self):
+        for path in os.listdir(self.PACKAGES_ROOT):
+            if path not in self.indexed_folders:
+                if Workspace.check_for_package(os.path.join(self.PACKAGES_ROOT, path)):
+                    breadcrumb = path
+                else:
+                    breadcrumb = None
+                self.index_dependencies(self.dependencies,
+                                        os.path.join(self.PACKAGES_ROOT, path),
+                                        breadcrumb=breadcrumb)
+                self.indexed_folders.add(path)
 
     def open_module_file(self, the_module: Module, parent_span: opentracing.Span) -> str:
         if the_module.is_external:
@@ -252,7 +264,8 @@ class Workspace:
         return [
             {
                 "package": {"name": p},
-                "dependencies": self.get_dependencies(parent_span)  # multiple packages in the project share the same dependencies
+                # multiple packages in the project share the same dependencies
+                "dependencies": self.get_dependencies(parent_span)
             } for p in self.project_packages
         ]
 
