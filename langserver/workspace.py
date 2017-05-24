@@ -1,12 +1,20 @@
+from .config import GlobalConfig
 from .fs import FileSystem, LocalFileSystem
 from .imports import get_imports
 from .fetch import fetch_dependency
 from typing import Dict, Set
+
+import logging
 import sys
 import os
 import os.path
 import threading
 import opentracing
+
+import imp
+
+
+log = logging.getLogger(__name__)
 
 
 class DummyFile:
@@ -27,20 +35,18 @@ class Module:
                  path: str,
                  is_package: bool=False,
                  is_external: bool=False,
-                 is_stdlib: bool=False):
+                 is_stdlib: bool=False,
+                 is_native: bool=False):
         self.name = name
         self.qualified_name = qualified_name
         self.path = path
         self.is_package = is_package
         self.is_external = is_external
         self.is_stdlib = is_stdlib
+        self.is_native = is_native
 
     def __repr__(self):
         return "PythonModule({}, {})".format(self.name, self.path)
-
-
-STDLIB_REPO_URL = "git://github.com/python/cpython"
-STDLIB_SRC_PATH = "Lib"
 
 
 class Workspace:
@@ -58,7 +64,7 @@ class Workspace:
             original_root_path = self.repo
             self.hash = repo_and_hash[1]
 
-        self.is_stdlib = (self.repo == STDLIB_REPO_URL)
+        self.is_stdlib = (self.repo == GlobalConfig.STDLIB_REPO_URL)
 
         if original_root_path.startswith("git://"):
             original_root_path = original_root_path[6:]
@@ -68,8 +74,10 @@ class Workspace:
         if self.hash:
             self.key = ".".join((self.key, self.hash))
 
-        self.PYTHON_ROOT = "/usr/lib/python3.5"  # TODO: point to whatever Python version the project wants
-        self.PACKAGES_ROOT = os.path.join("python-langserver-cache", self.key)
+        self.PYTHON_PATH = GlobalConfig.PYTHON_PATH  # TODO: allow different Python versions per project/workspace
+        self.PACKAGES_PATH = os.path.join(GlobalConfig.PACKAGES_PARENT, self.key)
+        log.debug("Setting Python path to %s", self.PYTHON_PATH)
+        log.debug("Setting package path to %s", self.PACKAGES_PATH)
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
@@ -87,14 +95,19 @@ class Workspace:
 
         for n in sys.builtin_module_names:
             self.stdlib[n] = "native"  # TODO: figure out how to provide code intelligence for compiled-in modules
-        self.index_dependencies(self.stdlib, self.PYTHON_ROOT, is_stdlib=True)
+
+        if os.path.exists(self.PYTHON_PATH):
+            log.debug("Indexing standard library at %s", self.PYTHON_PATH)
+            self.index_dependencies(self.stdlib, self.PYTHON_PATH, is_stdlib=True)
+        else:
+            log.warning("Standard library not found at %s", self.PYTHON_PATH)
 
         # if the dependencies are already cached from a previous session, go ahead and index them, otherwise just
         # create the folder and let them be fetched on-demand
-        if os.path.exists(self.PACKAGES_ROOT):
+        if os.path.exists(self.PACKAGES_PATH):
             self.index_external_modules()
         else:
-            os.makedirs(self.PACKAGES_ROOT)
+            os.makedirs(self.PACKAGES_PATH)
 
     def index_dependencies(self,
                            index: Dict[str, Module],
@@ -112,48 +125,55 @@ class Workspace:
         :param breadcrumb: should be omitted by the caller; this method uses it to keep track of the fully qualified
         module name
         """
-        for filename in os.listdir(library_path):
+        parent, this = os.path.split(library_path)
+        basename, extension = os.path.splitext(this)
+        if Workspace.is_package(library_path) or extension == ".py" and this != "__init__.py":
+            qualified_name = ".".join((breadcrumb, basename)) if breadcrumb else basename
+        elif extension == ".so":
+            basename = basename.split(".")[0]
+            qualified_name = ".".join((breadcrumb, basename)) if breadcrumb else basename
+        else:
+            qualified_name = breadcrumb
 
-            basename, extension = os.path.splitext(filename)
-            if filename == "__init__.py":
-                # we're inside a folder whose name is the package name, so the breadcrumb is the qualified name
-                qualified_name = breadcrumb
-            elif extension == ".egg":
-                # it's a Python egg; discard the shell and go deeper, which means using the breadcrumb as-is
-                # TODO: might need to process the config files if we run into edge cases
-                qualified_name = breadcrumb
-            elif breadcrumb:
-                # otherwise add the filename to the breadcrumb
-                qualified_name = ".".join((breadcrumb, basename))
-            else:
-                qualified_name = basename
-
-            if os.path.isdir(os.path.join(library_path, filename)):
-                # recursively index the folder
-                self.index_dependencies(index, os.path.join(library_path, filename), is_stdlib, qualified_name)
-            elif filename == "__init__.py":
-                # we're already inside a package
-                module_name = os.path.basename(library_path)
-                the_module = Module(module_name,
-                                    qualified_name,
-                                    os.path.join(library_path, filename),
-                                    True,
-                                    True,
-                                    is_stdlib)
-                index[qualified_name] = the_module
-                self.module_paths[os.path.abspath(the_module.path)] = the_module
-                self.fetched.add(module_name)
-            elif extension == ".py":
-                # just a regular non-package module
-                the_module = Module(basename,
-                                    qualified_name,
-                                    os.path.join(library_path, filename),
-                                    False,
-                                    True,
-                                    is_stdlib)
-                index[qualified_name] = the_module
-                self.module_paths[os.path.abspath(the_module.path)] = the_module
-                self.fetched.add(basename)
+        if os.path.isdir(library_path):
+            # recursively index this folder
+            for child in os.listdir(library_path):
+                self.index_dependencies(index, os.path.join(library_path, child), is_stdlib, qualified_name)
+        elif this == "__init__.py":
+            # we're already inside a package
+            module_name = os.path.basename(parent)
+            the_module = Module(module_name,
+                                qualified_name,
+                                library_path,
+                                True,
+                                True,
+                                is_stdlib)
+            index[qualified_name] = the_module
+            self.module_paths[os.path.abspath(the_module.path)] = the_module
+            self.fetched.add(module_name)
+        elif extension == ".py":
+            # just a regular non-package module
+            the_module = Module(basename,
+                                qualified_name,
+                                library_path,
+                                False,
+                                True,
+                                is_stdlib)
+            index[qualified_name] = the_module
+            self.module_paths[os.path.abspath(the_module.path)] = the_module
+            self.fetched.add(basename)
+        elif extension == ".so":
+            # native module -- mark it as such and report a warning or something
+            the_module = Module(basename,
+                                qualified_name,
+                                "",
+                                False,
+                                True,
+                                is_stdlib,
+                                True)
+            index[qualified_name] = the_module
+            self.module_paths[os.path.abspath(the_module.path)] = the_module
+            self.fetched.add(basename)
 
     def index_project(self):
         """
@@ -221,21 +241,19 @@ class Workspace:
         if package_name not in self.fetched:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
-            fetch_dependency(package_name, self.PACKAGES_ROOT)
+            fetch_dependency(package_name, self.PACKAGES_PATH)
             self.index_external_modules()
             self.indexing_lock.release()
-        return self.dependencies.get(qualified_name, None)
+        the_module = self.dependencies.get(qualified_name, None)
+        if the_module and the_module.is_native:
+            raise NotImplementedError("Unable to analyze native modules")
+        else:
+            return the_module
 
     def index_external_modules(self):
-        for path in os.listdir(self.PACKAGES_ROOT):
+        for path in os.listdir(self.PACKAGES_PATH):
             if path not in self.indexed_folders:
-                if Workspace.check_for_package(os.path.join(self.PACKAGES_ROOT, path)):
-                    breadcrumb = path
-                else:
-                    breadcrumb = None
-                self.index_dependencies(self.dependencies,
-                                        os.path.join(self.PACKAGES_ROOT, path),
-                                        breadcrumb=breadcrumb)
+                self.index_dependencies(self.dependencies, os.path.join(self.PACKAGES_PATH, path))
                 self.indexed_folders.add(path)
 
     def open_module_file(self, the_module: Module, parent_span: opentracing.Span) -> str:
@@ -272,7 +290,7 @@ class Workspace:
         ]
 
     @staticmethod
-    def check_for_package(path: str) -> bool:
+    def is_package(path: str) -> bool:
         return os.path.isdir(path) and "__init__.py" in os.listdir(path)
 
     @staticmethod

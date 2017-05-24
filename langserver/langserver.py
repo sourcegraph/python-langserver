@@ -7,10 +7,11 @@ import traceback
 import lightstep
 import opentracing
 
+from .config import GlobalConfig
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .workspace import Workspace, STDLIB_SRC_PATH
+from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 
 
@@ -120,7 +121,7 @@ class LangServer:
             log.error("Failed goto_assignments for %s", request, exc_info=True)
             parent_span.log_kv(
                 {"error", "Failed goto_assignments for %s" % request})
-            return []
+        return []
 
     @staticmethod
     def goto_definitions(script, request):
@@ -135,7 +136,7 @@ class LangServer:
             log.error("Failed goto_definitions for %s", request, exc_info=True)
             parent_span.log_kv(
                 {"error", "Failed goto_definitions for %s" % request})
-            return []
+        return []
 
     @staticmethod
     def usages(script, parent_span):
@@ -312,7 +313,7 @@ class LangServer:
                 }
 
             elif defining_module and defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_ROOT)
+                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_PATH)
                 filename = os.path.basename(defining_module_path)
                 symbol_name = ""
                 symbol_kind = ""
@@ -327,7 +328,7 @@ class LangServer:
                     "name": symbol_name,
                     "container": defining_module.qualified_name,
                     "kind": symbol_kind,
-                    "path": os.path.join(STDLIB_SRC_PATH, rel_path),
+                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
                     "file": filename
                 }
 
@@ -454,10 +455,14 @@ def main():
         "--addr", default=4389, help="server listen (tcp)", type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--lightstep_token")
+    parser.add_argument("--python_path")
 
     args = parser.parse_args()
 
     logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
+
+    if args.python_path:
+        GlobalConfig.PYTHON_PATH = args.python_path
 
     # if args.lightstep_token isn't set, we'll fall back on the default no-op opentracing implementation
     if args.lightstep_token:
