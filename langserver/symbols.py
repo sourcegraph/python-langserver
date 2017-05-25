@@ -132,17 +132,37 @@ def _imap_extract_exported_symbols(args):
 
 
 class SymbolVisitor:
+    def __init__(self, name=None, kind=None):
+        self.name = name
+        self.kind = kind
+
     def visit_Module(self, node, container):
+        if self.kind and self.kind == "module" and self.name and self.name == node.name:
+            yield Symbol(
+                node.name,
+                SymbolKind.Module,
+                node.lineno,
+                node.col_offset,
+                container=container
+            )
         # Modules is our global scope. Just visit all the children
         yield from self.generic_visit(node)
 
     def visit_ClassDef(self, node, container):
+        if self.kind and self.kind != "class":
+            return
+        if self.name and self.name != node.name:
+            return
         yield Symbol(node.name, SymbolKind.Class, node.lineno, node.col_offset)
 
         # Visit all child symbols, but with container set to the class
         yield from self.generic_visit(node, container=node.name)
 
     def visit_FunctionDef(self, node, container):
+        if self.kind and self.kind != "def":
+            return
+        if self.name and self.name != node.name:
+            return
         yield Symbol(
             node.name,
             SymbolKind.Function if container is None else SymbolKind.Method,
@@ -151,6 +171,9 @@ class SymbolVisitor:
             container=container)
 
     def visit_Assign(self, assign_node, container):
+        # TODO: handle this
+        if self.kind or self.name:
+            return
         for node in assign_node.targets:
             if not hasattr(node, "id"):
                 continue
@@ -162,6 +185,9 @@ class SymbolVisitor:
                 container=container)
 
     def visit_If(self, node, container):
+        # TODO: handle this
+        if self.kind or self.name:
+            return
         # If is often used provide different implementations for the same var. To avoid duplicate names, we only visit the true body.
         for child in node.body:
             yield from self.visit(child, container)
@@ -185,3 +211,25 @@ class SymbolVisitor:
                         yield from self.visit(item, container)
             elif isinstance(value, ast.AST):
                 yield from self.visit(value, container)
+
+
+def targeted_symbol(symbol_descriptor, fs, root_path, parent_span):
+    if "path" in symbol_descriptor:
+        # exact path
+        file_filter = symbol_descriptor["path"]
+    else:
+        # just the filename
+        file_filter = symbol_descriptor["file"]
+    paths = (path for path in fs.walk(root_path) if path.endswith(file_filter))
+    symbols = []
+    for path in paths:
+        source = fs.open(path, parent_span)
+        try:
+            tree = ast.parse(source, path)
+        except SyntaxError:
+            continue
+        visitor = SymbolVisitor(symbol_descriptor["name"], symbol_descriptor["kind"])
+        for sym in visitor.visit(tree):
+            sym.file = path
+            symbols.append(sym.json_object())
+    return symbols

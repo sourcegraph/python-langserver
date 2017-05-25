@@ -12,7 +12,7 @@ from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .workspace import Workspace
-from .symbols import extract_symbols, workspace_symbols
+from .symbols import extract_symbols, workspace_symbols, targeted_symbol
 
 
 log = logging.getLogger(__name__)
@@ -279,6 +279,9 @@ class LangServer:
 
         results = []
         defs = LangServer.goto_assignments(script, request) or LangServer.goto_definitions(script, request)
+        # shallow_defs = LangServer.goto_assignments(script, request)
+        # deep_defs = LangServer.goto_definitions(script, request)
+        # defs = shallow_defs or deep_defs
         if not defs:
             return results
 
@@ -349,7 +352,7 @@ class LangServer:
                 }
 
             results.append(symbol_locator)
-
+        print("**** XDEF RESULT:", results)
         return results
 
     def serve_references(self, request):
@@ -392,12 +395,15 @@ class LangServer:
 
     def serve_symbols(self, request):
         parent_span = request["span"]
+        params = request["params"]
+
+        if "symbol" in params:
+            return targeted_symbol(params["symbol"], self.fs, self.root_path, parent_span)
+
         if self.all_symbols is None:
             self.all_symbols = workspace_symbols(self.fs, self.root_path,
                                                  parent_span)
 
-        params = request["params"]
-        print("**** WORKSPACE/SYMBOL REQUEST:", params)
         q, limit = params.get("query"), params.get("limit", 50)
         symbols = ((sym.score(q), sym) for sym in self.all_symbols)
         symbols = ((score, sym) for (score, sym) in symbols if score >= 0)

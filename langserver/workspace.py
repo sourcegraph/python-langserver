@@ -185,13 +185,36 @@ class Workspace:
         """
         all_paths = list(self.fs.walk(self.PROJECT_ROOT))
 
-        # pre-compute the set of all packages in this project -- this will be useful a bit later, when trying to
-        # figure out each module's qualified name
+        # TODO: maybe try to exec setup.py with a sandboxed global env and builtins dict or something
+        # pre-compute the set of all packages in this project -- this will be useful when trying to figure out each
+        # module's qualified name, as well as the packages that are exported by this project
         package_paths = {}
+        top_level_modules = set()
         for path in all_paths:
             folder, filename = os.path.split(path)
             if filename == "__init__.py":
                 package_paths[folder] = True
+            if folder == "/"\
+                    and filename.endswith(".py")\
+                    and filename not in {"__init__.py", "setup.py", "tests.py", "test.py"}:
+                basename, extension = os.path.splitext(filename)
+                top_level_modules.add(basename)
+
+        # figure out this project's exports (for xpackages)
+        for path in package_paths:
+            if path.startswith("/"):
+                path = path[1:]
+            else:
+                continue
+            path_components = path.split("/")
+            if len(path_components) > 1:
+                continue
+            else:
+                self.project_packages.add(path_components[0])
+
+        if not self.project_packages:  # if this is the case, then the exports must be in top-level Python files
+            for m in top_level_modules:
+                self.project_packages.add(m)
 
         # now index all modules and packages, taking care to compute their qualified names correctly (can be tricky
         # depending on how the folders are nested, and whether they have '__init__.py's or not
@@ -200,11 +223,6 @@ class Workspace:
             basename, ext = os.path.splitext(filename)
             if filename == "__init__.py":
                 parent, this = os.path.split(folder)
-                # check if this is a root package in this project
-                if os.path.dirname(parent).endswith("/"):
-                    parent_parent = os.path.basename(parent)
-                    if parent_parent:
-                        self.project_packages.add(os.path.basename(parent))
             elif filename.endswith(".py"):
                 parent = folder
                 this = basename
@@ -281,13 +299,19 @@ class Workspace:
         return dependencies
 
     def get_package_information(self, parent_span: opentracing.Span) -> list:
-        return [
-            {
-                "package": {"name": p},
-                # multiple packages in the project share the same dependencies
-                "dependencies": self.get_dependencies(parent_span)
-            } for p in self.project_packages
-        ]
+        if self.is_stdlib:
+            return [{
+                "package": {"name": "cpython"},
+                "dependencies": []
+            }]
+        else:
+            return [
+                {
+                    "package": {"name": p},
+                    # multiple packages in the project share the same dependencies
+                    "dependencies": self.get_dependencies(parent_span)
+                } for p in self.project_packages
+            ]
 
     @staticmethod
     def is_package(path: str) -> bool:
