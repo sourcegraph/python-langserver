@@ -278,10 +278,7 @@ class LangServer:
             parent_span=parent_span)
 
         results = []
-        defs = LangServer.goto_assignments(script, request) or LangServer.goto_definitions(script, request)
-        # shallow_defs = LangServer.goto_assignments(script, request)
-        # deep_defs = LangServer.goto_definitions(script, request)
-        # defs = shallow_defs or deep_defs
+        defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
         if not defs:
             return results
 
@@ -302,9 +299,7 @@ class LangServer:
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    name_and_kind = d.description.split(" ")
-                    symbol_name = name_and_kind[1]
-                    symbol_kind = name_and_kind[0]
+                    symbol_name, symbol_kind = self.name_and_kind(d.description)
                 symbol_locator["symbol"] = {
                     "package": {
                         "name": defining_module.qualified_name.split(".")[0],
@@ -321,9 +316,7 @@ class LangServer:
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    name_and_kind = d.description.split(" ")
-                    symbol_name = name_and_kind[1]
-                    symbol_kind = name_and_kind[0]
+                    symbol_name, symbol_kind = self.name_and_kind(d.description)
                 symbol_locator["symbol"] = {
                     "package": {
                         "name": "cpython",
@@ -352,8 +345,17 @@ class LangServer:
                 }
 
             results.append(symbol_locator)
-        print("**** XDEF RESULT:", results)
         return results
+
+    def name_and_kind(self, description: str):
+        parts = description.split(" ")
+        if "=" in description:
+            name = parts[0]
+            kind = "="
+        else:
+            name = parts[1]
+            kind = parts[0]
+        return name, kind
 
     def serve_references(self, request):
         params = request["params"]
