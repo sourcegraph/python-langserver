@@ -4,6 +4,8 @@ import os
 import shutil
 import logging
 
+from .config import GlobalConfig
+
 
 log = logging.getLogger(__name__)
 
@@ -18,7 +20,7 @@ def fetch_dependency(module_name: str, install_path: str):
     with tempfile.TemporaryDirectory() as download_folder:
         log.debug("Downloading package %s to %s", module_name, download_folder, exc_info=True)
         # TODO: check the result status
-        result = subprocess.run(["pip3", "download", "-d", download_folder, module_name])
+        result = subprocess.run([GlobalConfig.PIP_COMMAND, "download", "-d", download_folder, module_name])
         for thing in os.listdir(download_folder):
             thing_abs = os.path.join(download_folder, thing)
             if os.path.isdir(thing_abs):

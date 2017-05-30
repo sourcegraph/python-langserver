@@ -11,8 +11,6 @@ import os.path
 import threading
 import opentracing
 
-import imp
-
 
 log = logging.getLogger(__name__)
 
