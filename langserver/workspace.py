@@ -8,6 +8,7 @@ import logging
 import sys
 import os
 import os.path
+import shutil
 import threading
 import opentracing
 
@@ -106,6 +107,10 @@ class Workspace:
             self.index_external_modules()
         else:
             os.makedirs(self.PACKAGES_PATH)
+
+    def cleanup(self):
+        log.info("Removing package cache %s", self.PACKAGES_PATH)
+        shutil.rmtree(self.PACKAGES_PATH, True)
 
     def index_dependencies(self,
                            index: Dict[str, Module],

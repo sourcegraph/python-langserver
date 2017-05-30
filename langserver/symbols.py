@@ -10,7 +10,6 @@ from enum import Enum
 log = logging.getLogger(__name__)
 
 
-
 class SymbolKind(Enum):
     """SymbolKind corresponds to the SymbolKind enum type found in the LSP spec."""
     File = 1

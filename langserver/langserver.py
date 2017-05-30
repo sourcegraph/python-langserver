@@ -427,6 +427,7 @@ class LangServer:
         return self.workspace.get_dependencies(request["span"])
 
     def serve_exit(self, request):
+        self.workspace.cleanup()
         self.running = False
 
     def serve_default(self, request):
