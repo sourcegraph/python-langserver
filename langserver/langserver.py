@@ -7,11 +7,13 @@ import traceback
 import lightstep
 import opentracing
 
+from .config import GlobalConfig
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .workspace import Workspace
-from .symbols import extract_symbols, workspace_symbols
+from .symbols import extract_symbols, workspace_symbols, targeted_symbol
+
 
 log = logging.getLogger(__name__)
 
@@ -36,9 +38,11 @@ class LangServer:
         while self.running:
             try:
                 request = self.conn.read_message()
+                self.handle(request)
             except EOFError:
                 break
-            self.handle(request)
+            except Exception as e:
+                log.error("Unexpected error: %s", e, exc_info=True)
 
     def handle(self, request):
         if "meta" in request:
@@ -117,7 +121,7 @@ class LangServer:
             log.error("Failed goto_assignments for %s", request, exc_info=True)
             parent_span.log_kv(
                 {"error", "Failed goto_assignments for %s" % request})
-            return []
+        return []
 
     @staticmethod
     def goto_definitions(script, request):
@@ -132,7 +136,7 @@ class LangServer:
             log.error("Failed goto_definitions for %s", request, exc_info=True)
             parent_span.log_kv(
                 {"error", "Failed goto_definitions for %s" % request})
-            return []
+        return []
 
     @staticmethod
     def usages(script, parent_span):
@@ -151,10 +155,7 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        self.workspace = Workspace(self.fs, self.root_path)
-
-        print("X-PACKAGES:", self.serve_x_packages(None))
-        print("X-DEPENDENCIES:", self.serve_x_dependencies(None))
+        self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
 
         return {
             "capabilities": {
@@ -277,7 +278,7 @@ class LangServer:
             parent_span=parent_span)
 
         results = []
-        defs = LangServer.goto_assignments(script, request) or LangServer.goto_definitions(script, request)
+        defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
         if not defs:
             return results
 
@@ -292,46 +293,42 @@ class LangServer:
             symbol_locator = {"symbol": None, "location": None}
 
             if defining_module and defining_module.is_external and not defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path, self.workspace.PACKAGES_ROOT)
-                print("**** WANT EXTERNAL DEFINITION", rel_path)
+                # the module path doesn't map onto the repository structure because we're not fully installing
+                # dependency packages, so don't include it in the symbol descriptor
+                filename = os.path.basename(defining_module_path)
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    name_and_kind = d.description.split(" ")
-                    symbol_name = name_and_kind[1]
-                    symbol_kind = name_and_kind[0]
+                    symbol_name, symbol_kind = self.name_and_kind(d.description)
                 symbol_locator["symbol"] = {
                     "package": {
                         "name": defining_module.qualified_name.split(".")[0],
                     },
                     "name": symbol_name,
+                    "container": defining_module.qualified_name,
                     "kind": symbol_kind,
-                    "path": rel_path
+                    "file": filename
                 }
-                results.append(symbol_locator)
 
             elif defining_module and defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_ROOT)
-                print("**** WANT STDLIB DEFINITION", rel_path)
-                # TODO: probably some more special casing to handle the layout of the CPython repository
+                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_PATH)
+                filename = os.path.basename(defining_module_path)
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    name_and_kind = d.description.split(" ")
-                    symbol_name = name_and_kind[1]
-                    symbol_kind = name_and_kind[0]
+                    symbol_name, symbol_kind = self.name_and_kind(d.description)
                 symbol_locator["symbol"] = {
                     "package": {
-                        "name": defining_module.qualified_name.split(".")[0],
+                        "name": "cpython",
                     },
                     "name": symbol_name,
+                    "container": defining_module.qualified_name,
                     "kind": symbol_kind,
-                    "path": rel_path
+                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
+                    "file": filename
                 }
-                results.append(symbol_locator)
 
             else:
-                print("**** GOT LOCAL DEFINITION FROM", d.module_path or path)
                 symbol_locator["location"] = {
                     # TODO(renfred) determine why d.module_path is empty.
                     "uri": "file://" + (d.module_path or path),
@@ -347,11 +344,18 @@ class LangServer:
                     },
                 }
 
-            print("**** DEFINITION:", symbol_locator)
-
             results.append(symbol_locator)
-
         return results
+
+    def name_and_kind(self, description: str):
+        parts = description.split(" ")
+        if "=" in description:
+            name = parts[0]
+            kind = "="
+        else:
+            name = parts[1]
+            kind = parts[0]
+        return name, kind
 
     def serve_references(self, request):
         params = request["params"]
@@ -393,12 +397,15 @@ class LangServer:
 
     def serve_symbols(self, request):
         parent_span = request["span"]
+        params = request["params"]
+
+        if "symbol" in params:
+            return targeted_symbol(params["symbol"], self.fs, self.root_path, parent_span)
+
         if self.all_symbols is None:
             self.all_symbols = workspace_symbols(self.fs, self.root_path,
                                                  parent_span)
 
-        params = request["params"]
-        print("**** WORKSPACE/SYMBOL REQUEST:", params)
         q, limit = params.get("query"), params.get("limit", 50)
         symbols = ((sym.score(q), sym) for sym in self.all_symbols)
         symbols = ((score, sym) for (score, sym) in symbols if score >= 0)
@@ -414,10 +421,10 @@ class LangServer:
         return [s.json_object() for s in extract_symbols(source, path)]
 
     def serve_x_packages(self, request):
-        return self.workspace.get_package_information()
+        return self.workspace.get_package_information(request["span"])
 
     def serve_x_dependencies(self, request):
-        return self.workspace.get_dependencies()
+        return self.workspace.get_dependencies(request["span"])
 
     def serve_exit(self, request):
         self.running = False
@@ -456,10 +463,19 @@ def main():
         "--addr", default=4389, help="server listen (tcp)", type=int)
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--lightstep_token")
+    parser.add_argument("--python_path")
+    parser.add_argument("--pip_command")
 
     args = parser.parse_args()
 
     logging.basicConfig(level=(logging.DEBUG if args.debug else logging.INFO))
+
+    if args.python_path:
+        GlobalConfig.PYTHON_PATH = args.python_path
+    if args.pip_command:
+        GlobalConfig.PIP_COMMAND = args.pip_command
+
+    log.info("Setting Python path defaulting to %s", GlobalConfig.PYTHON_PATH)
 
     # if args.lightstep_token isn't set, we'll fall back on the default no-op opentracing implementation
     if args.lightstep_token:
