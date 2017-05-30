@@ -171,8 +171,12 @@ class SymbolVisitor:
             if self.kind == "class" and self.name == node.name:
                 yield Symbol(node.name, SymbolKind.Class, node.lineno, node.col_offset)
                 return
-        # Visit all child symbols, but with container set to the class
-        yield from self.generic_visit(node, container=node.name)
+            else:
+                yield from self.generic_visit(node, container=node.name)
+        else:
+            yield Symbol(node.name, SymbolKind.Class, node.lineno, node.col_offset)
+            # Visit all child symbols, but with container set to the class
+            yield from self.generic_visit(node, container=node.name)
 
     def visit_FunctionDef(self, node, container):
         if self.kind and self.name:
