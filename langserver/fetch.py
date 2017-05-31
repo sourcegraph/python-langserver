@@ -4,8 +4,7 @@ import os
 import shutil
 import logging
 
-from .config import GlobalConfig
-
+import pip
 
 log = logging.getLogger(__name__)
 
@@ -20,7 +19,8 @@ def fetch_dependency(module_name: str, install_path: str):
     with tempfile.TemporaryDirectory() as download_folder:
         log.debug("Downloading package %s to %s", module_name, download_folder, exc_info=True)
         # TODO: check the result status
-        result = subprocess.run([GlobalConfig.PIP_COMMAND, "download", "-d", download_folder, module_name])
+        # result = subprocess.run([GlobalConfig.PIP_COMMAND, "download", "-d", download_folder, module_name])
+        result = pip.main(["download", "--no-deps", "-d", download_folder, module_name])
         for thing in os.listdir(download_folder):
             thing_abs = os.path.join(download_folder, thing)
             if os.path.isdir(thing_abs):
@@ -32,5 +32,8 @@ def fetch_dependency(module_name: str, install_path: str):
             elif thing.endswith(".tar.gz"):
                 log.debug("Untarring %s to %s", thing, install_path, exc_info=True)
                 result = subprocess.run(["tar", "-C", install_path, "-xzf", thing_abs])
+            elif thing.endswith(".tar.bz2"):
+                log.debug("Untarring %s to %s", thing, install_path, exc_info=True)
+                result = subprocess.run(["tar", "-C", install_path, "-xjf", thing_abs])
             else:
                 log.warning("Unrecognized package file: %s", thing, exc_info=True)
