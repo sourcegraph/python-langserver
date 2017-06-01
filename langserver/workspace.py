@@ -2,7 +2,7 @@ from .config import GlobalConfig
 from .fs import FileSystem, LocalFileSystem
 from .imports import get_imports
 from .fetch import fetch_dependency
-from typing import Dict, Set
+from typing import Dict, Set, List
 
 import logging
 import sys
@@ -285,6 +285,15 @@ class Workspace:
 
     def get_module_by_path(self, path: str) -> Module:
         return self.module_paths.get(path, None)
+
+    def get_project_module(self, qualified_name: str) -> Module:
+        return self.project.get(qualified_name, None)
+
+    def get_modules(self, qualified_name: str) -> List[Module]:
+        project_module = self.project.get(qualified_name, None)
+        external_module = self.find_external_module(qualified_name)
+        stdlib_module = self.stdlib.get(qualified_name, None)
+        return list(filter(None, [project_module, external_module, stdlib_module]))
 
     def get_dependencies(self, parent_span: opentracing.Span) -> list:
         top_level_stdlib = {p.split(".")[0] for p in self.stdlib}

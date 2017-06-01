@@ -13,6 +13,7 @@ from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols, targeted_symbol
+from .references import get_references
 
 
 log = logging.getLogger(__name__)
@@ -67,6 +68,7 @@ class LangServer:
             "textDocument/definition": self.serve_definition,
             "textDocument/xdefinition": self.serve_x_definition,
             "textDocument/references": self.serve_references,
+            "workspace/xreferences": self.serve_x_references,
             "textDocument/documentSymbol": self.serve_document_symbols,
             "workspace/symbol": self.serve_symbols,
             "workspace/xpackages": self.serve_x_packages,
@@ -164,6 +166,7 @@ class LangServer:
                 "referencesProvider": True,
                 "documentSymbolProvider": True,
                 "workspaceSymbolProvider": True,
+                "streaming": True,
             }
         }
 
@@ -292,7 +295,7 @@ class LangServer:
 
             symbol_locator = {"symbol": None, "location": None}
 
-            if defining_module and defining_module.is_external and not defining_module.is_stdlib:
+            if defining_module and not defining_module.is_stdlib:
                 # the module path doesn't map onto the repository structure because we're not fully installing
                 # dependency packages, so don't include it in the symbol descriptor
                 filename = os.path.basename(defining_module_path)
@@ -328,8 +331,8 @@ class LangServer:
                     "file": filename
                 }
 
-            else:
-                symbol_locator["location"] = {
+            if d.is_definition() and d.line is not None and d.column is not None:
+                location = {
                     # TODO(renfred) determine why d.module_path is empty.
                     "uri": "file://" + (d.module_path or path),
                     "range": {
@@ -343,6 +346,13 @@ class LangServer:
                         },
                     },
                 }
+            # add a position hint in case this eventually gets passed to an operation that needs it (such as
+            # x-references)
+            symbol_locator["symbol"]["position"] = location["range"]["start"]
+
+            # set the full location if the definition is in this workspace
+            if not defining_module or not defining_module.is_external:
+                symbol_locator["location"] = location
 
             results.append(symbol_locator)
         return results
@@ -377,10 +387,20 @@ class LangServer:
             return {}
 
         refs = []
+        partial_initializer = {
+            "id": request["id"],
+            "patch": [{
+                "op": "add",
+                "path": "",
+                "value": []
+            }]
+        }
+        self.conn.send_notification("$/partialResult", partial_initializer)
+        json_patch = []
         for u in usages:
             if u.is_definition():
                 continue
-            refs.append({
+            location = {
                 "uri": "file://" + u.module_path,
                 "range": {
                     "start": {
@@ -392,7 +412,81 @@ class LangServer:
                         "character": u.column + len(u.name),
                     }
                 }
-            })
+            }
+            refs.append(location)
+            patch_op = {
+                "op": "add",
+                "path": "/-",
+                "value": location,
+            }
+            json_patch.append(patch_op)
+        partial_result = {
+            "id": request["id"],
+            "patch": json_patch,
+        }
+        self.conn.send_notification("$/partialResult", partial_result)
+        return refs
+
+    def serve_x_references(self, request):
+        parent_span = request["span"]
+        params = request["params"]
+        symbol = params["query"]
+        if not symbol:
+            return []
+
+        package_name = symbol["container"].split(".")[0]
+        symbol_name = symbol["name"]
+
+        refs = []
+        partial_initializer = {
+            "id": request["id"],
+            "patch": [{
+                "op": "add",
+                "path": "",
+                "value": []
+            }]
+        }
+        self.conn.send_notification("$/partialResult", partial_initializer)
+        # We can't use Jedi to get x-refs because we only have a symbol descriptor, not a source location and source
+        # file. I tried fetching the package that's mentioned in the symbol descriptor and providing the source of the
+        # definition for Jedi, but that didn't seem to work, maybe because the fetched package is in the local FS
+        # cache, whereas the project files are handled by the remote FS. Anyway, unless we want to dig further into
+        # Jedi or rewrite the FS abstraction, it's easier to manually parse the source files and search the ASTs. We
+        # can still use Jedi to eliminate false positives by ensuring that each returned reference has a definition
+        # that matches the symbol descriptor.
+        for ref_batch in get_references(package_name, symbol_name, self.fs, self.root_path, parent_span):
+            json_patch = []
+            for r in ref_batch:
+                location = {
+                    "uri": "file://" + r["path"],
+                    "range": {
+                        "start": {
+                            "line": r["line"],
+                            "character": r["character"],
+                        },
+                        "end": {
+                            "line": r["line"],
+                            "character": r["character"] + len(symbol_name)
+                        }
+                    }
+                }
+                ref_info = {
+                    "reference": location,
+                    "symbol": symbol,
+                }
+                refs.append(ref_info)
+                patch_op = {
+                    "op": "add",
+                    "path": "/-",
+                    "value": ref_info,
+                }
+                json_patch.append(patch_op)
+            partial_result = {
+                "id": request["id"],
+                "patch": json_patch,
+            }
+            self.conn.send_notification("$/partialResult", partial_result)
+
         return refs
 
     def serve_symbols(self, request):
@@ -411,7 +505,9 @@ class LangServer:
         symbols = ((score, sym) for (score, sym) in symbols if score >= 0)
         symbols = sorted(symbols, reverse=True, key=lambda x: x[0])[:limit]
 
-        return [s.json_object() for (_, s) in symbols]
+        result = [s.json_object() for (_, s) in symbols]
+        print("**** SYMBOLS:", result)
+        return result
 
     def serve_document_symbols(self, request):
         params = request["params"]
