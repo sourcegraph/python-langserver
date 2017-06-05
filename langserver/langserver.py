@@ -346,8 +346,7 @@ class LangServer:
                         },
                     },
                 }
-            # add a position hint in case this eventually gets passed to an operation that needs it (such as
-            # x-references)
+            # add a position hint in case this eventually gets passed to an operation that could use it
             symbol_locator["symbol"]["position"] = location["range"]["start"]
 
             # set the full location if the definition is in this workspace
@@ -506,7 +505,6 @@ class LangServer:
         symbols = sorted(symbols, reverse=True, key=lambda x: x[0])[:limit]
 
         result = [s.json_object() for (_, s) in symbols]
-        print("**** SYMBOLS:", result)
         return result
 
     def serve_document_symbols(self, request):
