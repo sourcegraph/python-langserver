@@ -138,6 +138,14 @@ class JSONRPC2Connection:
         self._send(body)
         return self.read_message(want=lambda msg: msg.get("id") == rid)
 
+    def send_notification(self, method: str, params):
+        body = {
+            "jsonrpc": "2.0",
+            "method": method,
+            "params": params,
+        }
+        self._send(body)
+
     def send_request_batch(self, requests):
         """Pipelines requests and returns responses.
 
