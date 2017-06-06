@@ -368,6 +368,7 @@ class LangServer:
 
     def serve_references(self, request):
         params = request["params"]
+        limit = params.get("limit", 200)
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
         parent_span = request["span"]
@@ -384,6 +385,8 @@ class LangServer:
         usages = LangServer.usages(script, parent_span)
         if len(usages) == 0:
             return {}
+        if len(usages) > limit:
+            usages = usages[:limit]
 
         refs = []
         partial_initializer = {
@@ -429,6 +432,7 @@ class LangServer:
     def serve_x_references(self, request):
         parent_span = request["span"]
         params = request["params"]
+        limit = params.get("limit", 200)
         symbol = params["query"]
         if not symbol:
             return []
@@ -480,11 +484,15 @@ class LangServer:
                     "value": ref_info,
                 }
                 json_patch.append(patch_op)
+                if len(refs) >= limit:
+                    break
             partial_result = {
                 "id": request["id"],
                 "patch": json_patch,
             }
             self.conn.send_notification("$/partialResult", partial_result)
+            if len(refs) >= limit:
+                break
 
         return refs
 

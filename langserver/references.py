@@ -65,7 +65,10 @@ def get_references(module_name, symbol_name, fs, root_path, parent_span):
 
 def filter_for_references(name, fs, root_path, parent_span):
     py_paths = (path for path in fs.walk(root_path) if path.endswith(".py"))
-    py_srces = fs.batch_open(py_paths, parent_span)
+
+    py_srces = ((path, fs.open(path, parent_span)) for path in py_paths)
+
+    # py_srces = fs.batch_open(py_paths, parent_span)
 
     for path_and_source in py_srces:
         path, source = path_and_source
