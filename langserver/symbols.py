@@ -1,7 +1,6 @@
 import ast
 import itertools
 import multiprocessing
-import os
 import logging
 
 from enum import Enum
@@ -138,67 +137,17 @@ def _imap_extract_exported_symbols(args):
 
 
 class SymbolVisitor:
-    def __init__(self, name=None, kind=None, path=None):
-        self.name = name
-        self.kind = kind
-        # the AST nodes for modules don't contain their name, so we have to infer it from the file or folder name
-        if path:
-            folder, file = os.path.split(path)
-            if file == "__init__.py":
-                self.module = os.path.basename(folder)
-            else:
-                basename, _ = os.path.splitext(file)
-                self.module = basename
-        else:
-            self.path = None
-
     def visit_Module(self, node, container):
-        if self.kind and self.kind == "module" and self.name and self.name == self.module:
-            yield Symbol(
-                self.module,
-                SymbolKind.Module,
-                1,  # hard-code the position because module nodes don't have position attributes either
-                0,
-                container=container
-            )
-            return  # if we wanted a module, we found it -- don't need to go any deeper
         # Modules is our global scope. Just visit all the children
         yield from self.generic_visit(node)
 
     def visit_ClassDef(self, node, container):
-        if self.kind and self.name:
-            if self.kind == "class" and self.name == node.name:
-                yield Symbol(node.name, SymbolKind.Class, node.lineno, node.col_offset)
-                return
-            else:
-                yield from self.generic_visit(node, container=node.name)
-        else:
-            yield Symbol(node.name, SymbolKind.Class, node.lineno, node.col_offset)
-            # Visit all child symbols, but with container set to the class
-            yield from self.generic_visit(node, container=node.name)
+        yield Symbol(node.name, SymbolKind.Class, node.lineno, node.col_offset)
+
+        # Visit all child symbols, but with container set to the class
+        yield from self.generic_visit(node, container=node.name)
 
     def visit_FunctionDef(self, node, container):
-        if self.kind and self.name:
-            if self.kind == "instance" and self.name == container and node.name == "__init__":
-                yield Symbol(
-                    node.name,
-                    SymbolKind.Constructor,
-                    node.lineno,
-                    node.col_offset,
-                    container=container
-                )
-                return
-            elif self.kind == "def" and self.name == node.name:
-                yield Symbol(
-                    node.name,
-                    SymbolKind.Function if container is None else SymbolKind.Method,
-                    node.lineno,
-                    node.col_offset,
-                    container=container
-                )
-                return
-            else:
-                return
         yield Symbol(
             node.name,
             SymbolKind.Function if container is None else SymbolKind.Method,
@@ -210,17 +159,6 @@ class SymbolVisitor:
         for node in assign_node.targets:
             if not hasattr(node, "id"):
                 continue
-            if self.kind and self.name:
-                if self.kind == "=" and self.name == node.id:
-                    yield Symbol(
-                        node.id,
-                        SymbolKind.Variable,
-                        node.lineno,
-                        node.col_offset,
-                        container=container)
-                    return
-                else:
-                    continue
             yield Symbol(
                 node.id,
                 SymbolKind.Variable,
@@ -229,7 +167,8 @@ class SymbolVisitor:
                 container=container)
 
     def visit_If(self, node, container):
-        # If is often used provide different implementations for the same var. To avoid duplicate names, we only visit the true body.
+        # If is often used provide different implementations for the same var. To avoid duplicate names, we only visit
+        # the true body.
         for child in node.body:
             yield from self.visit(child, container)
 
@@ -254,24 +193,3 @@ class SymbolVisitor:
                 yield from self.visit(value, container)
 
 
-def targeted_symbol(symbol_descriptor, fs, root_path, parent_span):
-    if "path" in symbol_descriptor:
-        # exact path
-        file_filter = "/" + symbol_descriptor["path"]
-    else:
-        # just the filename
-        file_filter = "/" + symbol_descriptor["file"]
-    paths = (path for path in fs.walk(root_path) if path.endswith(file_filter))
-    symbols = []
-    for path in paths:
-        source = fs.open(path, parent_span)
-        try:
-            tree = ast.parse(source, path)
-        except SyntaxError as e:
-            log.error("Error parsing Python file %s:%s -- %s: %s", path, e.lineno, e.msg, e.text)
-            continue
-        visitor = SymbolVisitor(symbol_descriptor["name"], symbol_descriptor["kind"], path)
-        for sym in visitor.visit(tree):
-            sym.file = path
-            symbols.append(sym.json_object())
-    return symbols

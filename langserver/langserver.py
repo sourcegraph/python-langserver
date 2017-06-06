@@ -12,7 +12,8 @@ from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
 from .workspace import Workspace
-from .symbols import extract_symbols, workspace_symbols, targeted_symbol
+from .symbols import extract_symbols, workspace_symbols
+from .definitions import targeted_symbol
 from .references import get_references
 
 
@@ -281,7 +282,8 @@ class LangServer:
             parent_span=parent_span)
 
         results = []
-        defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
+        # defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
+        defs = LangServer.goto_assignments(script, request) or LangServer.goto_definitions(script, request)
         if not defs:
             return results
 
