@@ -93,6 +93,21 @@ class TargetedSymbolVisitor:
         for child in node.body:
             yield from self.visit(child, container)
 
+    # variables are sometimes initialized conditionally in try/catch blocks too
+    def visit_Try(self, node, container):
+        for child in node.body:
+            yield from self.visit(child, container)
+        for child in node.handlers:
+            yield from self.visit(child, container)
+        for child in node.orelse:
+            yield from self.visit(child, container)
+        for child in node.finalbody:
+            yield from self.visit(child, container)
+
+    def visit_ExceptHandler(self, node, container):
+        for child in node.body:
+            yield from self.visit(child, container)
+
     # Based on ast.NodeVisitor.visit
     def visit(self, node, container=None):
         # Two changes from ast.NodeVisitor.visit:
