@@ -8,6 +8,10 @@ log = logging.getLogger(__name__)
 
 
 class TargetedSymbolVisitor:
+    """
+    The purpose of this class is to take a SymbolDescriptor (typically the result of a preceding x-definition request)
+    and perform a more precise symbol search based on the extra metadata available in the descriptor.
+    """
     def __init__(self, name, kind, path):
         self.name = name
         self.kind = kind
@@ -32,6 +36,19 @@ class TargetedSymbolVisitor:
         else:
             # else visit all the children
             yield from self.generic_visit(node)
+
+    def visit_ImportFrom(self, node, container):
+        # this handles the case where imported symbols are re-exported; an xj2d sometimes needs to land here
+        for n in node.names:
+            if n.name == self.name:
+                yield Symbol(
+                    n.name,
+                    SymbolKind.Variable,
+                    node.lineno,
+                    node.col_offset,
+                    container=container
+                )
+                break
 
     def visit_ClassDef(self, node, container):
         if self.kind == "class" and self.name == node.name:
