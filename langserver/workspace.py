@@ -35,7 +35,8 @@ class Module:
                  is_package: bool=False,
                  is_external: bool=False,
                  is_stdlib: bool=False,
-                 is_native: bool=False):
+                 is_native: bool=False,
+                 is_namespace_package: bool=False):
         self.name = name
         self.qualified_name = qualified_name
         self.path = path
@@ -43,6 +44,7 @@ class Module:
         self.is_external = is_external
         self.is_stdlib = is_stdlib
         self.is_native = is_native
+        self.is_namespace_package = is_namespace_package
 
     def __repr__(self):
         return "PythonModule({}, {})".format(self.name, self.path)
@@ -80,6 +82,7 @@ class Workspace:
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
+        self.source_paths = {path for path in self.fs.walk(self.PROJECT_ROOT) if path.endswith(".py")}
         self.project = {}
         self.stdlib = {}
         self.dependencies = {}
@@ -94,6 +97,8 @@ class Workspace:
 
         for n in sys.builtin_module_names:
             self.stdlib[n] = "native"  # TODO: figure out how to provide code intelligence for compiled-in modules
+        if "nt" not in self.stdlib:
+            self.stdlib["nt"] = "native"  # this is missing on non-Windows systems; add it so we don't try to fetch it
 
         if os.path.exists(self.PYTHON_PATH):
             log.debug("Indexing standard library at %s", self.PYTHON_PATH)
@@ -277,11 +282,13 @@ class Workspace:
                 self.index_dependencies(self.dependencies, os.path.join(self.PACKAGES_PATH, path))
                 self.indexed_folders.add(path)
 
-    def open_module_file(self, the_module: Module, parent_span: opentracing.Span) -> str:
-        if the_module.is_external:
-            return self.local_fs.open(the_module.path, parent_span)
+    def open_module_file(self, the_module: Module, parent_span: opentracing.Span):
+        if the_module.path not in self.source_paths:
+            return None
+        elif the_module.is_external:
+            return DummyFile(self.local_fs.open(the_module.path, parent_span))
         else:
-            return self.fs.open(the_module.path, parent_span)
+            return DummyFile(self.fs.open(the_module.path, parent_span))
 
     def get_module_by_path(self, path: str) -> Module:
         return self.module_paths.get(path, None)
@@ -325,6 +332,50 @@ class Workspace:
                 } for p in self.project_packages
             ]
 
+    # finds a project module using the newer, more dynamic import rules detailed in PEP 420
+    # (see https://www.python.org/dev/peps/pep-0420/)
+    def find_module(self, name: str, qualified_name: str, dirs: List[str]):
+        module_path = None
+        ns_package = False
+        for parent in dirs:
+            if os.path.join(parent, name, "__init__.py") in self.source_paths:
+                # there's a folder at this level that implements a package with the name we're looking for
+                module_path = os.path.join(parent, name, "__init__.py")
+                break
+            elif os.path.basename(parent) == name and os.path.join(parent, "__init__.py") in self.source_paths:
+                # we're already in a package with the name we're looking
+                module_path = os.path.join(parent, "__init__.py")
+                break
+            elif os.path.join(parent, name + ".py") in self.source_paths:
+                # there's a file at this level that implements a module with the name we're looking for
+                module_path = os.path.join(parent, name + ".py")
+                break
+            elif self.folder_exists(os.path.join(parent, name)):
+                # there's a folder at this level that implements a namespace package with the name we're looking for
+                module_path = os.path.join(parent, name)
+                ns_package = True
+                break
+            elif os.path.basename(parent) == name:
+                # we're already in a namespace package with the name we're looking for
+                module_path = parent
+                ns_package = True
+                break
+
+        if module_path and (os.path.basename(module_path) == "__init__.py" or not module_path.endswith(".py")):
+            the_module = Module(name, qualified_name, module_path, True)  # only handling project packages for now
+            the_module.is_namespace_package = ns_package
+            return the_module
+        elif module_path:
+            return Module(name, qualified_name, module_path)  # ditto for modules
+        else:
+            return None
+
+    def folder_exists(self, name):
+        for path in self.source_paths:
+            if os.path.commonpath((name, path)) == name:
+                return True
+        return False
+
     @staticmethod
     def is_package(path: str) -> bool:
         return os.path.isdir(path) and "__init__.py" in os.listdir(path)
@@ -332,3 +383,10 @@ class Workspace:
     @staticmethod
     def get_top_level_package_names(index: Dict[str, Module]) -> Set[str]:
         return {name.split(".")[0] for name in index}
+
+
+class ImplicitNSInfo(object):
+    """Stores information returned from an implicit namespace spec"""
+    def __init__(self, name, paths):
+        self.name = name
+        self.paths = paths

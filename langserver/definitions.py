@@ -49,6 +49,34 @@ class TargetedSymbolVisitor:
                     container=container
                 )
                 break
+            if n.asname and self.name == n.asname:
+                yield Symbol(
+                    n.asname,
+                    SymbolKind.Variable,
+                    node.lineno,
+                    node.col_offset,
+                    container=container
+                )
+                break
+
+    def visit_Import(self, node, container):
+        for n in node.names:
+            if n.name and self.name in n.name.split("."):
+                yield Symbol(
+                    n.name,
+                    SymbolKind.Variable,
+                    node.lineno,
+                    node.col_offset,
+                    container=container
+                )
+            if n.asname and self.name == n.asname:
+                yield Symbol(
+                    n.asname,
+                    SymbolKind.Variable,
+                    node.lineno,
+                    node.col_offset,
+                    container=container
+                )
 
     def visit_ClassDef(self, node, container):
         if self.kind == "class" and self.name == node.name:
