@@ -270,6 +270,7 @@ class LangServer:
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
+        pos["path"] = path  # will be useful for filtering out circular/useless definitions
         parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
@@ -282,13 +283,13 @@ class LangServer:
             parent_span=parent_span)
 
         results = []
-        # defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
-        defs = LangServer.goto_assignments(script, request) or LangServer.goto_definitions(script, request)
+        defs = []
+        defs.extend(LangServer.goto_assignments(script, request))
+        defs.extend(LangServer.goto_definitions(script, request))
         if not defs:
             return results
 
         for d in defs:
-
             defining_module_path = d.module_path
             defining_module = self.workspace.get_module_by_path(defining_module_path)
 
@@ -304,7 +305,7 @@ class LangServer:
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    symbol_name, symbol_kind = self.name_and_kind(d.description)
+                    symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
                 symbol_locator["symbol"] = {
                     "package": {
                         "name": defining_module.qualified_name.split(".")[0],
@@ -321,7 +322,7 @@ class LangServer:
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    symbol_name, symbol_kind = self.name_and_kind(d.description)
+                    symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
                 symbol_locator["symbol"] = {
                     "package": {
                         "name": "cpython",
@@ -349,16 +350,44 @@ class LangServer:
                     },
                 }
             # add a position hint in case this eventually gets passed to an operation that could use it
-            symbol_locator["symbol"]["position"] = location["range"]["start"]
+            if symbol_locator["symbol"]:
+                symbol_locator["symbol"]["position"] = location["range"]["start"]
 
             # set the full location if the definition is in this workspace
             if not defining_module or not defining_module.is_external:
                 symbol_locator["location"] = location
 
             results.append(symbol_locator)
-        return results
 
-    def name_and_kind(self, description: str):
+        return [result for result in results if not LangServer.is_circular(pos, result["location"])]
+
+    @staticmethod
+    def is_circular(reference, definition):
+        """
+        Takes a reference location and a definition location, and determines whether they're circular (and hence
+        useless). We need to do this because getting the definition of an import (using Jedi's goto_assignments
+        method) sometimes returns that same import. We filter out such cases and fall back on goto_definitions.
+        """
+        if not reference or not definition:
+            return False
+        if reference["path"] != path_from_uri(definition["uri"]):
+            return False
+        if definition["range"]["start"]["line"] == 0 \
+                and definition["range"]["end"]["line"] == 0 \
+                and definition["range"]["start"]["character"] == 0:
+            # if the definition is at the very beginning of the same file, then we've almost certainly jumped to the
+            # beginning of the module that we're already inside of
+            return True
+        if reference["line"] < definition["range"]["start"]["line"] \
+                or reference["line"] > definition["range"]["end"]["line"]:
+            return False
+        if reference["character"] < definition["range"]["start"]["character"] \
+                or reference["character"] > definition["range"]["end"]["character"]:
+            return False
+        return True
+
+    @staticmethod
+    def name_and_kind(description: str):
         parts = description.split(" ")
         if "=" in description:
             name = parts[0]

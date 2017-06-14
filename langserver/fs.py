@@ -55,10 +55,12 @@ class LocalFileSystem(FileSystem):
     def listdir(self, path, parent_span):
         entries = []
         names = os.listdir(path)
-        for n in names:
-            p = os.path.join(path, n)
-            entries.append(Entry(n, os.path.isdir(p), os.path.getsize(p)))
-        return entries
+        # TODO: prepend `path` to each name?
+        return names
+        # for n in names:
+        #     p = os.path.join(path, n)
+        #     entries.append(Entry(n, os.path.isdir(p), os.path.getsize(p)))
+        # return entries
 
 
 class RemoteFileSystem(FileSystem):
@@ -78,18 +80,24 @@ class RemoteFileSystem(FileSystem):
                 raise FileException(resp["error"])
             return resp["result"]["text"]
 
-    def listdir(self, path, parent_span):
+    def listdir(self, path, parent_span=None):
+        if parent_span is None:
+            return self._listdir(path)
+
         with opentracing.start_child_span(
                 parent_span, "RemoteFileSystem.listdir") as list_span:
             list_span.set_tag("path", path)
             # TODO(keegan) Use workspace/xfiles + cache
-            resp = self.conn.send_request("fs/readDir", path)
-            if resp.get("error") is not None:
-                raise FileException(resp["error"])
-            entries = []
-            for e in resp["result"]:
-                entries.append(Entry(e["name"], e["dir"], e["size"]))
-            return entries
+            return self._listdir(path)
+
+    def _listdir(self, path):
+        resp = self.conn.send_request("fs/readDir", path)
+        if resp.get("error") is not None:
+            raise FileException(resp["error"])
+        entries = []
+        for e in resp["result"]:
+            entries.append(e["name"])
+        return entries
 
     def walk(self, path):
         resp = self.conn.send_request("workspace/xfiles",

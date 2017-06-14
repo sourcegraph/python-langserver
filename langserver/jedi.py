@@ -1,6 +1,8 @@
 from os import path as filepath
+import os
 
 import jedi
+import jedi._compatibility
 
 import opentracing
 from typing import List
@@ -92,6 +94,8 @@ class RemoteJedi:
         def find_module_remote(string, dir=None, fullname=None):
             """A swap-in replacement for Jedi's find module function that uses the
             remote fs to resolve module imports."""
+            if dir is None:
+                dir = [os.path.dirname(path)]
             with opentracing.start_child_span(
                     parent_span,
                     "find_module_remote_callback") as find_module_span:
@@ -110,7 +114,8 @@ class RemoteJedi:
 
                 # after searching for built-ins, search the current project
                 if not the_module:
-                    the_module = self.workspace.find_project_module(fullname)
+                    # the_module = self.workspace.find_project_module(fullname)
+                    the_module = self.workspace.find_module(string, fullname, dir)
 
                 # finally, search 3rd party dependencies
                 if not the_module:
@@ -120,8 +125,13 @@ class RemoteJedi:
                     raise ImportError('Module "{}" not found in {}', string, dir)
 
                 is_package = the_module.is_package
-                module_file = DummyFile(self.workspace.open_module_file(the_module, find_module_span))
-                module_path = filepath.dirname(the_module.path) if is_package else the_module.path
+                module_file = self.workspace.open_module_file(the_module, find_module_span)
+                module_path = the_module.path
+                if is_package and the_module.is_namespace_package:
+                    module_path = jedi._compatibility.ImplicitNSInfo(fullname, [module_path])
+                    is_package = False
+                elif is_package and module_path.endswith(".py"):
+                    module_path = filepath.dirname(module_path)
                 return module_file, module_path, is_package
 
         # TODO: update this to use the workspace's module indices
@@ -148,6 +158,8 @@ class RemoteJedi:
             kwargs.update(
                 find_module=find_module_remote,
                 list_modules=list_modules,
-                load_source=load_source, )
+                load_source=load_source,
+                fs=self.fs
+            )
 
         return jedi.api.Script(*args, **kwargs)
