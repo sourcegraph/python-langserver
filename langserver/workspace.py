@@ -11,6 +11,7 @@ import os.path
 import shutil
 import threading
 import opentracing
+import jedi._compatibility
 
 
 log = logging.getLogger(__name__)
@@ -293,9 +294,6 @@ class Workspace:
     def get_module_by_path(self, path: str) -> Module:
         return self.module_paths.get(path, None)
 
-    def get_project_module(self, qualified_name: str) -> Module:
-        return self.project.get(qualified_name, None)
-
     def get_modules(self, qualified_name: str) -> List[Module]:
         project_module = self.project.get(qualified_name, None)
         external_module = self.find_external_module(qualified_name)
@@ -334,41 +332,33 @@ class Workspace:
 
     # finds a project module using the newer, more dynamic import rules detailed in PEP 420
     # (see https://www.python.org/dev/peps/pep-0420/)
-    def find_module(self, name: str, qualified_name: str, dirs: List[str]):
-        module_path = None
-        ns_package = False
+    def find_internal_module(self, name: str, qualified_name: str, dirs: List[str]):
+        module_paths = []
         for parent in dirs:
             if os.path.join(parent, name, "__init__.py") in self.source_paths:
                 # there's a folder at this level that implements a package with the name we're looking for
                 module_path = os.path.join(parent, name, "__init__.py")
-                break
+                module_file = DummyFile(self.fs.open(module_path))
+                return module_file, module_path, True
             elif os.path.basename(parent) == name and os.path.join(parent, "__init__.py") in self.source_paths:
-                # we're already in a package with the name we're looking
+                # we're already in a package with the name we're looking for
                 module_path = os.path.join(parent, "__init__.py")
-                break
+                module_file = DummyFile(self.fs.open(module_path))
+                return module_file, module_path, True
             elif os.path.join(parent, name + ".py") in self.source_paths:
                 # there's a file at this level that implements a module with the name we're looking for
                 module_path = os.path.join(parent, name + ".py")
-                break
+                module_file = DummyFile(self.fs.open(module_path))
+                return module_file, module_path, False
             elif self.folder_exists(os.path.join(parent, name)):
                 # there's a folder at this level that implements a namespace package with the name we're looking for
-                module_path = os.path.join(parent, name)
-                ns_package = True
-                break
+                module_paths.append(os.path.join(parent, name))
             elif os.path.basename(parent) == name:
                 # we're already in a namespace package with the name we're looking for
-                module_path = parent
-                ns_package = True
-                break
-
-        if module_path and (os.path.basename(module_path) == "__init__.py" or not module_path.endswith(".py")):
-            the_module = Module(name, qualified_name, module_path, True)  # only handling project packages for now
-            the_module.is_namespace_package = ns_package
-            return the_module
-        elif module_path:
-            return Module(name, qualified_name, module_path)  # ditto for modules
-        else:
-            return None
+                module_paths.append(parent)
+        if not module_paths:
+            return None, None, None
+        return None, jedi._compatibility.ImplicitNSInfo(qualified_name, module_paths), False
 
     def folder_exists(self, name):
         for path in self.source_paths:
@@ -383,10 +373,3 @@ class Workspace:
     @staticmethod
     def get_top_level_package_names(index: Dict[str, Module]) -> Set[str]:
         return {name.split(".")[0] for name in index}
-
-
-class ImplicitNSInfo(object):
-    """Stores information returned from an implicit namespace spec"""
-    def __init__(self, name, paths):
-        self.name = name
-        self.paths = paths

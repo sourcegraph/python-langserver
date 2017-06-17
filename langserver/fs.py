@@ -49,10 +49,10 @@ class FileSystem(ABC):
 
 
 class LocalFileSystem(FileSystem):
-    def open(self, path, parent_span):
+    def open(self, path, parent_span=None):
         return open(path).read()
 
-    def listdir(self, path, parent_span):
+    def listdir(self, path, parent_span=None):
         entries = []
         names = os.listdir(path)
         # TODO: prepend `path` to each name?
@@ -67,7 +67,17 @@ class RemoteFileSystem(FileSystem):
     def __init__(self, conn: JSONRPC2Connection):
         self.conn = conn
 
-    def open(self, path, parent_span):
+    def open(self, path, parent_span=None):
+        if parent_span is None:
+            resp = self.conn.send_request("textDocument/xcontent", {
+                "textDocument": {
+                    "uri": "file://" + path
+                }
+            })
+            if "error" in resp:
+                raise FileException(resp["error"])
+            return resp["result"]["text"]
+
         with opentracing.start_child_span(
                 parent_span, "RemoteFileSystem.open") as open_span:
             open_span.set_tag("path", path)
