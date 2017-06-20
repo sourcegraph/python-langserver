@@ -192,70 +192,36 @@ class Workspace:
         opposed to being able to walk the file tree top-down), it does some extra work to figure out the qualified
         names of each module.
         """
-        all_paths = list(self.fs.walk(self.PROJECT_ROOT))
-
-        # TODO: maybe try to exec setup.py with a sandboxed global env and builtins dict or something
+        # TODO: maybe try to exec setup.py with a sand-boxed global env and builtins dict or something
         # pre-compute the set of all packages in this project -- this will be useful when trying to figure out each
         # module's qualified name, as well as the packages that are exported by this project
-        package_paths = {}
+        all_paths = {path for path in self.fs.walk(self.PROJECT_ROOT) if path.endswith(".py")}
+        package_paths = set()
         top_level_modules = set()
         for path in all_paths:
             folder, filename = os.path.split(path)
-            if filename == "__init__.py":
-                package_paths[folder] = True
-            if folder == "/"\
-                    and filename.endswith(".py")\
-                    and filename not in {"__init__.py", "setup.py", "tests.py", "test.py"}:
+            if folder in package_paths:
+                continue
+            elif filename == "__init__.py":
+                package_paths.add(folder)
+            if folder == "/" and filename not in {"__init__.py", "setup.py", "tests.py", "test.py"}:
                 basename, extension = os.path.splitext(filename)
                 top_level_modules.add(basename)
 
-        # figure out this project's exports (for xpackages)
-        for path in package_paths:
+        # figure out this project's exports (for xpackages) -- this is just a heuristic that finds the top-most
+        # packages and assumes that those are exported; a foolproof solution would need to execute setup.py
+        min_depth = min([len(path.split("/")) for path in package_paths if path.startswith("/") and path != "/"])
+        top_level_folders = [path for path in package_paths if path != "/" and len(path.split("/")) == min_depth]
+
+        for path in top_level_folders:
             if path.startswith("/"):
                 path = path[1:]
-            else:
-                continue
             path_components = path.split("/")
-            if len(path_components) > 1:
-                continue
-            else:
-                self.project_packages.add(path_components[0])
+            self.project_packages.add(path_components[-1])
 
         if not self.project_packages:  # if this is the case, then the exports must be in top-level Python files
             for m in top_level_modules:
                 self.project_packages.add(m)
-
-        # now index all modules and packages, taking care to compute their qualified names correctly (can be tricky
-        # depending on how the folders are nested, and whether they have '__init__.py's or not
-        for path in all_paths:
-            folder, filename = os.path.split(path)
-            basename, ext = os.path.splitext(filename)
-            if filename == "__init__.py":
-                parent, this = os.path.split(folder)
-            elif filename.endswith(".py"):
-                parent = folder
-                this = basename
-            else:
-                continue
-            qualified_name_components = [this]
-            # A module's qualified name should only contain the names of its enclosing folders that are packages (i.e.,
-            # that contain an '__init__.py'), not the names of *all* its enclosing folders. Hence, the following loop
-            # only accumulates qualified name components until it encounters a folder that isn't in the pre-computed
-            # set of packages.
-            while parent and parent != "/" and parent in package_paths:
-                parent, this = os.path.split(parent)
-                qualified_name_components.append(this)
-            qualified_name_components.reverse()
-            qualified_name = ".".join(qualified_name_components)
-            if filename == "__init__.py":
-                module_name = os.path.basename(folder)
-                the_module = Module(module_name, qualified_name, path, True)
-                self.project[qualified_name] = the_module
-                self.module_paths[the_module.path] = the_module
-            elif ext == ".py" and not basename.startswith("__") and not basename.endswith("__"):
-                the_module = Module(basename, qualified_name, path)
-                self.project[qualified_name] = the_module
-                self.module_paths[the_module.path] = the_module
 
     def find_stdlib_module(self, qualified_name: str) -> Module:
         return self.stdlib.get(qualified_name, None)
