@@ -95,7 +95,11 @@ class RemoteJedi:
             """A swap-in replacement for Jedi's find module function that uses the
             remote fs to resolve module imports."""
             if dir is None:
-                dir = [os.path.dirname(path)]
+                # If we're starting the search for a module, then proceed from both the project root as well as the
+                # folder containing the current file. Normally we should only search from the project root (I think),
+                # but certain repos such as collections of example projects are structured such that we can support
+                # them better by searching relative to the current file, too.
+                dir = ["/", os.path.dirname(path)]
             with opentracing.start_child_span(
                     parent_span,
                     "find_module_remote_callback") as find_module_span:
@@ -112,10 +116,14 @@ class RemoteJedi:
                 if the_module == "native":  # break if we get a native module
                     raise ImportError('Module "{}" not found in {}', string, dir)
 
+                # TODO: use this clause's logic for the other clauses too (stdlib and external modules)
                 # after searching for built-ins, search the current project
                 if not the_module:
-                    # the_module = self.workspace.find_project_module(fullname)
-                    the_module = self.workspace.find_module(string, fullname, dir)
+                    module_file, module_path, is_package = self.workspace.find_internal_module(string, fullname, dir)
+                    if module_file or module_path:
+                        if is_package and module_path.endswith(".py"):
+                            module_path = os.path.dirname(module_path)
+                        return module_file, module_path, is_package
 
                 # finally, search 3rd party dependencies
                 if not the_module:
