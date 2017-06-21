@@ -37,38 +37,6 @@ class RemoteJedi:
         self.workspace = workspace
         self.root_path = root_path
 
-    def workspace_modules(self, path, parent_span) -> List[Module]:
-        """Return a set of all python modules found within a given path."""
-
-        with opentracing.start_child_span(
-                parent_span, "workspace_modules") as workspace_modules_span:
-            workspace_modules_span.set_tag("path", path)
-
-            dir = self.fs.listdir(path, workspace_modules_span)
-            modules = []
-            for e in dir:
-                if e.is_dir:
-                    subpath = filepath.join(path, e.name)
-                    subdir = self.fs.listdir(subpath, workspace_modules_span)
-                    if any([s.name == "__init__.py" for s in subdir]):
-                        modules.append(
-                            Module(e.name,
-                                   filepath.join(subpath, "__init__.py"),
-                                   True))
-                else:
-                    name, ext = filepath.splitext(e.name)
-                    if ext == ".py":
-                        if name == "__init__":
-                            name = filepath.basename(path)
-                            modules.append(
-                                Module(name, filepath.join(path, e.name),
-                                       True))
-                        else:
-                            modules.append(
-                                Module(name, filepath.join(path, e.name)))
-
-            return modules
-
     def new_script(self, *args, **kwargs):
         """Return an initialized Jedi API Script object."""
         if "parent_span" in kwargs:
