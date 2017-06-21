@@ -56,6 +56,7 @@ class Workspace:
     def __init__(self, fs: FileSystem, project_root: str, original_root_path: str= ""):
 
         self.project_packages = set()
+        self.project_packages = {}
         self.PROJECT_ROOT = project_root
         self.repo = None
         self.hash = None
@@ -210,18 +211,27 @@ class Workspace:
 
         # figure out this project's exports (for xpackages) -- this is just a heuristic that finds the top-most
         # packages and assumes that those are exported; a foolproof solution would need to execute setup.py
-        min_depth = min([len(path.split("/")) for path in package_paths if path.startswith("/") and path != "/"])
+        non_root_paths = [len(path.split("/")) for path in package_paths if path.startswith("/") and path != "/"]
+        if non_root_paths:
+            min_depth = min(non_root_paths)
+        else:
+            min_depth = 0
         top_level_folders = [path for path in package_paths if path != "/" and len(path.split("/")) == min_depth]
 
         for path in top_level_folders:
+            absolute_path = path
             if path.startswith("/"):
                 path = path[1:]
+            else:
+                absolute_path = os.path.join("/", path)
             path_components = path.split("/")
-            self.project_packages.add(path_components[-1])
+            # self.project_packages.add(path_components[-1])
+            self.project_packages[path_components[-1]] = absolute_path
 
         if not self.project_packages:  # if this is the case, then the exports must be in top-level Python files
             for m in top_level_modules:
-                self.project_packages.add(m)
+                # self.project_packages.add(m)
+                self.project_packages[m] = "/"
 
     def find_stdlib_module(self, qualified_name: str) -> Module:
         return self.stdlib.get(qualified_name, None)
@@ -270,7 +280,7 @@ class Workspace:
         top_level_stdlib = {p.split(".")[0] for p in self.stdlib}
         top_level_imports = get_imports(self.fs, self.PROJECT_ROOT, parent_span)
         stdlib_imports = top_level_imports & top_level_stdlib
-        external_imports = top_level_imports - top_level_stdlib - self.project_packages
+        external_imports = top_level_imports - top_level_stdlib - set(self.project_packages.keys())
         dependencies = [{"attributes": {"name": n}} for n in external_imports]
         if stdlib_imports:
             dependencies.append({
@@ -298,7 +308,7 @@ class Workspace:
 
     # finds a project module using the newer, more dynamic import rules detailed in PEP 420
     # (see https://www.python.org/dev/peps/pep-0420/)
-    def find_internal_module(self, name: str, qualified_name: str, dirs: List[str]):
+    def find_internal_module(self, name: str, qualified_name: str, dirs: List[str], second_try: bool=False):
         module_paths = []
         for parent in dirs:
             if os.path.join(parent, name, "__init__.py") in self.source_paths:
@@ -322,9 +332,12 @@ class Workspace:
             elif os.path.basename(parent) == name:
                 # we're already in a namespace package with the name we're looking for
                 module_paths.append(parent)
-        if not module_paths:
+        if not module_paths and not second_try and qualified_name.split(".")[0] in self.project_packages:
+            return self.find_internal_module(name, qualified_name, [self.project_packages[qualified_name.split(".")[0]]], True)
+        elif not module_paths and second_try:
             return None, None, None
-        return None, jedi._compatibility.ImplicitNSInfo(qualified_name, module_paths), False
+        else:
+            return None, jedi._compatibility.ImplicitNSInfo(qualified_name, module_paths), False
 
     def folder_exists(self, name):
         for path in self.source_paths:
