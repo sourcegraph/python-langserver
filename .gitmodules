@@ -1,0 +1,6 @@
+[submodule "test/repos/flask"]
+	path = test/repos/flask
+	url = git@github.com:pallets/flask.git
+[submodule "test/repos/cpython"]
+	path = test/repos/cpython
+	url = git@github.com:python/cpython.git
