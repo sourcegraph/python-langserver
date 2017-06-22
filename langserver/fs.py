@@ -50,7 +50,8 @@ class FileSystem(ABC):
 
 class LocalFileSystem(FileSystem):
     def open(self, path, parent_span=None):
-        return open(path).read()
+        with open(path) as open_file:
+            return open_file.read()
 
     def listdir(self, path, parent_span=None):
         entries = []

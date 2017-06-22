@@ -364,7 +364,7 @@ class LangServer:
     @staticmethod
     def is_circular(reference, definition):
         """
-        Takes a reference location and a definition location, and determines whether they're circular (and hence
+        Takes a reference location and a definition location, and determines whether they're the same (and hence
         useless). We need to do this because getting the definition of an import (using Jedi's goto_assignments
         method) sometimes returns that same import. We filter out such cases and fall back on goto_definitions.
         """
