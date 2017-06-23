@@ -35,6 +35,7 @@ class LangServer:
         self.fs = None
         self.all_symbols = None
         self.workspace = None
+        self.streaming = True
 
     def run(self):
         while self.running:
@@ -171,6 +172,26 @@ class LangServer:
             }
         }
 
+    # TODO(aaron): find a better way to create a langserver/workspace that uses a TestFileSystem
+    def test_initialize(self, request, fs):
+        params = request["params"]
+        self.root_path = path_from_uri(params["rootPath"])
+
+        self.fs = fs
+        self.streaming = False
+        self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
+
+        return {
+            "capabilities": {
+                "hoverProvider": True,
+                "definitionProvider": True,
+                "referencesProvider": True,
+                "documentSymbolProvider": True,
+                "workspaceSymbolProvider": True,
+                "streaming": False,
+            }
+        }
+
     def serve_hover(self, request):
         params = request["params"]
         pos = params["position"]
@@ -187,7 +208,6 @@ class LangServer:
             parent_span=parent_span)
 
         defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
-
         # The code from this point onwards is modified from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
         def generate_signature(completion):
@@ -428,7 +448,7 @@ class LangServer:
                 "value": []
             }]
         }
-        self.conn.send_notification("$/partialResult", partial_initializer)
+        self.conn.send_notification("$/partialResult", partial_initializer) if self.streaming else None
         json_patch = []
         for u in usages:
             if u.is_definition():
@@ -457,7 +477,7 @@ class LangServer:
             "id": request["id"],
             "patch": json_patch,
         }
-        self.conn.send_notification("$/partialResult", partial_result)
+        self.conn.send_notification("$/partialResult", partial_result) if self.streaming else None
         return refs
 
     def serve_x_references(self, request):
@@ -480,7 +500,7 @@ class LangServer:
                 "value": []
             }]
         }
-        self.conn.send_notification("$/partialResult", partial_initializer)
+        self.conn.send_notification("$/partialResult", partial_initializer) if self.streaming else None
         # We can't use Jedi to get x-refs because we only have a symbol descriptor, not a source location and source
         # file. I tried fetching the package that's mentioned in the symbol descriptor and providing the source of the
         # definition for Jedi, but that didn't seem to work, maybe because the fetched package is in the local FS
@@ -521,7 +541,7 @@ class LangServer:
                 "id": request["id"],
                 "patch": json_patch,
             }
-            self.conn.send_notification("$/partialResult", partial_result)
+            self.conn.send_notification("$/partialResult", partial_result) if self.streaming else None
             if len(refs) >= limit:
                 break
 

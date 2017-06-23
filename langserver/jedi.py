@@ -7,7 +7,7 @@ import jedi._compatibility
 import opentracing
 from typing import List
 
-from .fs import RemoteFileSystem
+from .fs import RemoteFileSystem, TestFileSystem
 
 
 class Module:
@@ -130,7 +130,8 @@ class RemoteJedi:
                 return result
 
         # TODO(keegan) It shouldn't matter if we are using a remote fs or not. Consider other ways to hook into the import system.
-        if isinstance(self.fs, RemoteFileSystem):
+        # TODO(aaron) Also, it shouldn't matter whether we're using a "real" filesystem or our test harness filesystem
+        if isinstance(self.fs, RemoteFileSystem) or isinstance(self.fs, TestFileSystem):
             kwargs.update(
                 find_module=find_module_remote,
                 list_modules=list_modules,
