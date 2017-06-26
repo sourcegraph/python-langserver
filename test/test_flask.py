@@ -1,4 +1,4 @@
-from test.test_harness import TestHarness
+from .test_harness import TestHarness
 import uuid
 
 

@@ -4,3 +4,6 @@
 [submodule "test/repos/cpython"]
 	path = test/repos/cpython
 	url = git@github.com:python/cpython.git
+[submodule "test/repos/jedi"]
+	path = test/repos/jedi
+	url = git@github.com:davidhalter/jedi.git
