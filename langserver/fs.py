@@ -28,7 +28,7 @@ class FileSystem(ABC):
         pass
 
     @abstractmethod
-    def listdir(path: str, parent_span) -> List[Entry]:
+    def listdir(path: str, parent_span) -> List[str]:
         pass
 
     def batch_open(self, paths, parent_span):
@@ -39,10 +39,10 @@ class FileSystem(ABC):
         dir = self.listdir(top)
         files, dirs = [], []
         for e in dir:
-            if e.is_dir:
-                dirs.append(os.path.join(top, e.name))
+            if os.path.isdir(e):
+                dirs.append(os.path.join(top, e))
             else:
-                files.append(os.path.join(top, e.name))
+                files.append(os.path.join(top, e))
         yield from files
         for d in dirs:
             yield from self.walk(d)
@@ -172,3 +172,45 @@ class InMemoryFileSystem(FileSystem):
             size = 0 if is_dir else len(v)
             entries[name] = Entry(name, is_dir, size)
         return entries.values()
+
+
+# TODO(aaron): determine whether this extra filesystem is really necessary, or if we could have just used a local fs
+# I suspect not, because the new workspace indexing/importing code wasn't written with a local fs in mind
+class TestFileSystem(FileSystem):
+    def __init__(self, local_root_path: str):
+        self.root = os.path.abspath(local_root_path)
+
+    def open(self, path: str, parent_span=None):
+        if os.path.isabs(path):
+            path = os.path.join(self.root, os.path.relpath(path, "/"))
+        else:
+            path = os.path.join(self.root, path)
+        with open(path) as open_file:
+            return open_file.read()
+
+    def batch_open(self, paths, parent_span):
+        for path in paths:
+            yield (path, self.open(path))
+
+    def listdir(self, path: str, parent_span=None):
+        path = os.path.abspath(path)
+        if not path.startswith(self.root):  # need this check for namespace imports, for which we get a relative path
+            if path.startswith("/"):
+                path = path[1:]
+            path = os.path.join(self.root, path)
+        return [os.path.join(path, p) for p in os.listdir(path)]
+
+    def walk(self, top: str):
+        yield from (os.path.join("/", p) for p in self._walk(top))
+
+    def _walk(self, top: str):
+        dir = self.listdir(top)
+        files, dirs = [], []
+        for e in dir:
+            if os.path.isdir(e):
+                dirs.append(os.path.relpath(e, self.root))
+            else:
+                files.append(os.path.relpath(e, self.root))
+        yield from files
+        for d in dirs:
+            yield from self._walk(os.path.join(self.root, d))
