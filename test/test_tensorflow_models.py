@@ -1,13 +1,9 @@
-from .harness import Harness
+from .harness import Harness, print_result
 import uuid
 
 
 tensorflow_models_workspace = Harness("repos/tensorflow-models")
 tensorflow_models_workspace.initialize("git://github.com/tensorflow/models?" + str(uuid.uuid4()))
-
-
-def print_result(result):
-    print("\nRESULT\n", result, "\n")
 
 
 def test_namespace_package_definition():

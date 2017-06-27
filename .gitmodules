@@ -10,3 +10,6 @@
 [submodule "test/repos/tensorflow-models"]
 	path = test/repos/tensorflow-models
 	url = git@github.com:tensorflow/models.git
+[submodule "test/repos/graphql-core"]
+	path = test/repos/graphql-core
+	url = git@github.com:plangrid/graphql-core.git

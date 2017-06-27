@@ -1,13 +1,9 @@
-from .harness import Harness
+from .harness import Harness, print_result
 import uuid
 
 
 flask_workspace = Harness("repos/flask")
 flask_workspace.initialize("git://github.com/pallets/flask?" + str(uuid.uuid4()))
-
-
-def print_result(result):
-    print("\nRESULT\n", result, "\n")
 
 
 def test_x_packages():
@@ -647,7 +643,6 @@ def test_local_references():
 
 def test_x_references():
     result = flask_workspace.x_references("werkzeug.datastructures", "ImmutableDict")
-    print_result(result)
     assert result == [
         {
             'reference': {

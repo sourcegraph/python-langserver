@@ -72,3 +72,8 @@ class Harness:
         params = {"query": symbol}
         request = self.request("workspace/xreferences", params)
         return self.langserver.serve_x_references(request)
+
+
+# helper for printing test results so that they can be copied back into the test (i.e., when adding new tests)
+def print_result(result):
+    print("\nRESULT\n", result, "\n")
