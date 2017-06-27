@@ -304,8 +304,8 @@ class LangServer:
 
         results = []
         defs = []
-        defs.extend(LangServer.goto_assignments(script, request))
         defs.extend(LangServer.goto_definitions(script, request))
+        defs.extend(LangServer.goto_assignments(script, request))
         if not defs:
             return results
 

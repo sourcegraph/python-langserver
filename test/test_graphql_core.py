@@ -16,6 +16,34 @@ def test_relative_import_definition():
                     'name': 'graphql'
                 },
                 'name': 'GraphQLObjectType',
+                'container': 'graphql.type.definition',
+                'kind': 'class',
+                'file': 'definition.py',
+                'position': {
+                    'line': 138,
+                    'character': 6
+                }
+            },
+            'location': {
+                'uri': 'file:///graphql/type/definition.py',
+                'range': {
+                    'start': {
+                        'line': 138,
+                        'character': 6
+                    },
+                    'end': {
+                        'line': 138,
+                        'character': 23
+                    }
+                }
+            }
+        },
+        {
+            'symbol': {
+                'package': {
+                    'name': 'graphql'
+                },
+                'name': 'GraphQLObjectType',
                 'container': 'graphql.type',
                 'kind': 'class',
                 'file': '__init__.py',
@@ -38,34 +66,6 @@ def test_relative_import_definition():
                 }
             }
         },
-        {
-            'symbol': {
-                'package': {
-                    'name': 'graphql'
-                },
-                'name': 'GraphQLObjectType',
-                'container': 'graphql.type.definition',
-                'kind': 'class',
-                'file': 'definition.py',
-                'position': {
-                    'line': 138,
-                    'character': 6
-                }
-            },
-            'location': {
-                'uri': 'file:///graphql/type/definition.py',
-                'range': {
-                    'start': {
-                        'line': 138,
-                        'character': 6
-                    },
-                    'end': {
-                        'line': 138,
-                        'character': 23
-                    }
-                }
-            }
-        }
     ]
 
 

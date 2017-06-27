@@ -185,6 +185,34 @@ def test_local_package_import_definition():
                     'name': 'flask'
                 },
                 'name': 'json',
+                'container': 'flask.json',
+                'kind': 'module',
+                'file': '__init__.py',
+                'position': {
+                    'line': 0,
+                    'character': 0
+                }
+            },
+            'location': {
+                'uri': 'file:///flask/json/__init__.py',
+                'range': {
+                    'start': {
+                        'line': 0,
+                        'character': 0
+                    },
+                    'end': {
+                        'line': 0,
+                        'character': 4
+                    }
+                }
+            }
+        },
+        {
+            'symbol': {
+                'package': {
+                    'name': 'flask'
+                },
+                'name': 'json',
                 'container': 'flask',
                 'kind': 'module',
                 'file': '__init__.py',
@@ -207,34 +235,6 @@ def test_local_package_import_definition():
                 }
             }
         },
-        {
-            'symbol': {
-                'package': {
-                    'name': 'flask'
-                },
-                'name': 'json',
-                'container': 'flask.json',
-                'kind': 'module',
-                'file': '__init__.py',
-                'position': {
-                    'line': 0,
-                    'character': 0
-                }
-            },
-            'location': {
-                'uri': 'file:///flask/json/__init__.py',
-                'range': {
-                    'start': {
-                        'line': 0,
-                        'character': 0
-                    },
-                    'end': {
-                        'line': 0,
-                        'character': 4
-                    }
-                }
-            }
-        }
     ]
 
 
@@ -255,6 +255,22 @@ def test_cross_repo_definition():
     result = flask_workspace.definition("/flask/app.py", 295, 20)
     # TODO(aaron): should we return a symbol descriptor with the local result? Might screw up xrefs
     assert result == [
+        {
+            'symbol': {
+                'package': {
+                    'name': 'werkzeug'
+                },
+                'name': 'ImmutableDict',
+                'container': 'werkzeug.datastructures',
+                'kind': 'class',
+                'file': 'datastructures.py',
+                'position': {
+                    'line': 1536,
+                    'character': 6
+                }
+            },
+            'location': None
+        },
         {
             'symbol': {
                 'package': {
@@ -283,28 +299,28 @@ def test_cross_repo_definition():
                 }
             }
         },
-        {
-            'symbol': {
-                'package': {
-                    'name': 'werkzeug'
-                },
-                'name': 'ImmutableDict',
-                'container': 'werkzeug.datastructures',
-                'kind': 'class',
-                'file': 'datastructures.py',
-                'position': {
-                    'line': 1536,
-                    'character': 6
-                }
-            },
-            'location': None
-        }
     ]
 
 
 def test_cross_repo_import_definition():
     result = flask_workspace.definition("/flask/__init__.py", 18, 19)
     assert result == [
+        {
+            'symbol': {
+                'package': {
+                    'name': 'markupsafe'
+                },
+                'name': 'Markup',
+                'container': 'markupsafe',
+                'kind': 'class',
+                'file': '__init__.py',
+                'position': {
+                    'line': 25,
+                    'character': 6
+                }
+            },
+            'location': None
+        },
         {
             'symbol': {
                 'package': {
@@ -321,22 +337,6 @@ def test_cross_repo_import_definition():
             },
             'location': None
         },
-        {
-            'symbol': {
-                'package': {
-                    'name': 'markupsafe'
-                },
-                'name': 'Markup',
-                'container': 'markupsafe',
-                'kind': 'class',
-                'file': '__init__.py',
-                'position': {
-                    'line': 25,
-                    'character': 6
-                }
-            },
-            'location': None
-        }
     ]
 
 
@@ -369,6 +369,23 @@ def test_stdlib_definition():
         {
             'symbol': {
                 'package': {
+                    'name': 'cpython'
+                },
+                'name': 'timedelta',
+                'container': 'datetime',
+                'kind': 'class',
+                'path': 'Lib/datetime.py',
+                'file': 'datetime.py',
+                'position': {
+                    'line': 335,
+                    'character': 6
+                }
+            },
+            'location': None
+        },
+        {
+            'symbol': {
+                'package': {
                     'name': 'flask'
                 },
                 'name': 'timedelta',
@@ -394,23 +411,6 @@ def test_stdlib_definition():
                 }
             }
         },
-        {
-            'symbol': {
-                'package': {
-                    'name': 'cpython'
-                },
-                'name': 'timedelta',
-                'container': 'datetime',
-                'kind': 'class',
-                'path': 'Lib/datetime.py',
-                'file': 'datetime.py',
-                'position': {
-                    'line': 335,
-                    'character': 6
-                }
-            },
-            'location': None
-        }
     ]
 
 
