@@ -1,7 +1,7 @@
-from .test_harness import TestHarness
+from .harness import Harness
 import uuid
 
-jedi_workspace = TestHarness("repos/jedi")
+jedi_workspace = Harness("repos/jedi")
 jedi_workspace.initialize("git://github.com/davidhalter/jedi?" + str(uuid.uuid4()))
 
 
@@ -10,9 +10,14 @@ def print_result(result):
 
 
 def test_x_packages():
-    result = jedi_workspace.x_packages()
+    packages = jedi_workspace.x_packages()
+    assert packages
+    result = None
+    for p in packages:
+        if "package" in p and p["package"] == {"name": "jedi"}:
+            result = p
+            break
     assert result
-    result = result[0]
     assert "package" in result and result["package"] == {'name': 'jedi'}
     assert "dependencies" in result
     dep_names = {d["attributes"]["name"] for d in result["dependencies"]}

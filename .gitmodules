@@ -7,3 +7,6 @@
 [submodule "test/repos/jedi"]
 	path = test/repos/jedi
 	url = git@github.com:davidhalter/jedi.git
+[submodule "test/repos/tensorflow-models"]
+	path = test/repos/tensorflow-models
+	url = git@github.com:tensorflow/models.git

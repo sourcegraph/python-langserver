@@ -1,8 +1,8 @@
-from .test_harness import TestHarness
+from .harness import Harness
 import uuid
 
 
-flask_workspace = TestHarness("repos/flask")
+flask_workspace = Harness("repos/flask")
 flask_workspace.initialize("git://github.com/pallets/flask?" + str(uuid.uuid4()))
 
 

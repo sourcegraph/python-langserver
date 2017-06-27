@@ -4,7 +4,7 @@ import langserver.fs as fs
 import opentracing
 
 
-class TestHarness:
+class Harness:
 
     def __init__(self, local_repo_path: str):
         self.langserver = langserver.LangServer(conn=None)
