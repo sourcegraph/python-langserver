@@ -194,6 +194,10 @@ class TestFileSystem(FileSystem):
 
     def listdir(self, path: str, parent_span=None):
         path = os.path.abspath(path)
+        if not path.startswith(self.root):  # need this check for namespace imports, for which we get a relative path
+            if path.startswith("/"):
+                path = path[1:]
+            path = os.path.join(self.root, path)
         return [os.path.join(path, p) for p in os.listdir(path)]
 
     def walk(self, top: str):
