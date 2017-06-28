@@ -13,3 +13,6 @@
 [submodule "test/repos/graphql-core"]
 	path = test/repos/graphql-core
 	url = git@github.com:plangrid/graphql-core.git
+[submodule "test/repos/thefuck"]
+	path = test/repos/thefuck
+	url = git@github.com:nvbn/thefuck.git
