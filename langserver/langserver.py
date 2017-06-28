@@ -379,7 +379,15 @@ class LangServer:
 
             results.append(symbol_locator)
 
-        return [result for result in results if not LangServer.is_circular(pos, result["location"])]
+        unique_results = []
+        for result in results:
+            if result not in unique_results:
+                unique_results.append(result)
+
+        # if there's more than one definition, go ahead and remove the ones that are the same as the input position
+        if len(unique_results) > 1:
+            unique_results = [ur for ur in unique_results if not LangServer.is_circular(pos, ur["location"])]
+        return unique_results
 
     @staticmethod
     def is_circular(reference, definition):

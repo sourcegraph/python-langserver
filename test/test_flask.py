@@ -704,4 +704,38 @@ def test_x_references():
     ]
 
 
+def test_definition_of_definition():
+    result = flask_workspace.definition("/flask/blueprints.py", 142, 8)
+    assert result == [
+        {
+            'symbol': {
+                'package': {
+                    'name': 'flask'
+                },
+                'name': 'record_once',
+                'container': 'flask.blueprints',
+                'kind': 'def',
+                'file': 'blueprints.py',
+                'position': {
+                    'line': 142,
+                    'character': 8
+                }
+            },
+            'location': {
+                'uri': 'file:///flask/blueprints.py',
+                'range': {
+                    'start': {
+                        'line': 142,
+                        'character': 8
+                    },
+                    'end': {
+                        'line': 142,
+                        'character': 19
+                    }
+                }
+            }
+        }
+    ]
+
+
 flask_workspace.exit()
