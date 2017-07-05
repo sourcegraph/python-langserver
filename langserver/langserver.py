@@ -238,9 +238,6 @@ class LangServer:
         with opentracing.start_child_span(
                 parent_span, "accumulate_definitions") as accum_defs_span:
             for definition in defs:
-                # the def in this is just identical to the input symbol, so don't include it
-                if definition.type == "param":  # add more cases as necessary
-                    continue
                 signature = definition.name
                 description = None
                 if definition.type in ('class', 'function'):
@@ -280,6 +277,10 @@ class LangServer:
                 })
                 if description:
                     results.append(description)
+                elif definition.type == "param":
+                    results.append("parameter `" + definition.name + "`")
+                elif definition.type == "statement":
+                    results.append("variable `" + definition.name + "`")
 
         if results:
             return {"contents": results}
