@@ -635,7 +635,6 @@ def main():
     parser.add_argument("--debug", action="store_true")
     parser.add_argument("--lightstep_token")
     parser.add_argument("--python_path")
-    parser.add_argument("--pip_command")
 
     args = parser.parse_args()
 
@@ -643,10 +642,8 @@ def main():
 
     if args.python_path:
         GlobalConfig.PYTHON_PATH = args.python_path
-    if args.pip_command:
-        GlobalConfig.PIP_COMMAND = args.pip_command
 
-    log.info("Setting Python path defaulting to %s", GlobalConfig.PYTHON_PATH)
+    log.info("Setting Python path to %s", GlobalConfig.PYTHON_PATH)
 
     # if args.lightstep_token isn't set, we'll fall back on the default no-op opentracing implementation
     if args.lightstep_token:
