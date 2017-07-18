@@ -4,10 +4,14 @@ from .imports import get_imports
 from .fetch import fetch_dependency
 from typing import Dict, Set, List
 
+import pkg_resources
+import setuptools
+
 import logging
 import sys
 import os
 import os.path
+import fnmatch
 import shutil
 import threading
 import opentracing
@@ -113,6 +117,10 @@ class Workspace:
             self.index_external_modules()
         else:
             os.makedirs(self.PACKAGES_PATH)
+
+        print("**** REPO:", self.repo)
+        for p in self.find_packages("/", [], ["*"]):
+            print("**** FOUND PACKAGE:", p)
 
     def cleanup(self):
         log.info("Removing package cache %s", self.PACKAGES_PATH)
@@ -260,6 +268,7 @@ class Workspace:
     def find_stdlib_module(self, qualified_name: str) -> Module:
         return self.stdlib.get(qualified_name, None)
 
+    # not necessary?
     def find_project_module(self, qualified_name: str) -> Module:
         return self.project.get(qualified_name, None)
 
@@ -294,6 +303,7 @@ class Workspace:
     def get_module_by_path(self, path: str) -> Module:
         return self.module_paths.get(path, None)
 
+    # not necessary?
     def get_modules(self, qualified_name: str) -> List[Module]:
         project_module = self.project.get(qualified_name, None)
         external_module = self.find_external_module(qualified_name)
@@ -366,10 +376,38 @@ class Workspace:
                 return True
         return False
 
+    # Adapted from setuptools.find_packages, and guided by the discussion here:
+    # https://github.com/pypa/setuptools/issues/97
+    def find_packages(self, root, exclude, include):
+
+        def keep(name):
+            return any(fnmatch.fnmatchcase(name, pat=pat) for pat in include)
+
+        def drop(name):
+            return any(fnmatch.fnmatchcase(name, pat=pat) for pat in exclude)
+
+        folders = {os.path.dirname(p) for p in self.fs.walk(root)}
+        if root in folders:
+            folders.remove(root)
+        non_package_folders = set()
+        # lexicographic order should be fine, since we're gonna be comparing prefixes to determine package inclusion
+        sorted_folders = sorted(list(folders))
+        for folder in sorted_folders:
+            if os.path.join(folder, "__init__.py") not in self.source_paths:
+                non_package_folders.add(folder)
+            elif self.under(folder, non_package_folders):
+                continue
+            elif keep(folder) and not drop(folder):
+                yield folder.replace(os.path.sep, ".").strip(".")
+
+    @staticmethod
+    def under(folder, non_packages):
+        for non_package in non_packages:
+            if folder.startswith(non_package):
+                return True
+        else:
+            return False
+
     @staticmethod
     def is_package(path: str) -> bool:
         return os.path.isdir(path) and "__init__.py" in os.listdir(path)
-
-    @staticmethod
-    def get_top_level_package_names(index: Dict[str, Module]) -> Set[str]:
-        return {name.split(".")[0] for name in index}
