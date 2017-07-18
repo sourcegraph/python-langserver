@@ -2,6 +2,7 @@ from .config import GlobalConfig
 from .fs import FileSystem, LocalFileSystem
 from .imports import get_imports
 from .fetch import fetch_dependency
+from .upset import upset
 from typing import Dict, Set, List
 
 import pkg_resources
@@ -118,9 +119,17 @@ class Workspace:
         else:
             os.makedirs(self.PACKAGES_PATH)
 
-        print("**** REPO:", self.repo)
-        for p in self.find_packages("/", [], ["*"]):
-            print("**** FOUND PACKAGE:", p)
+        # print("**** REPO:", self.repo)
+        # for p in self.find_packages("/", [], ["*"]):
+        #     print("**** FOUND PACKAGE:", p)
+
+        for p in self.source_paths:
+            filename = os.path.basename(p)
+            if filename == "setup.py":
+                v = upset(self.fs.open(p), p, self)
+                print("**** NAME:", v.name)
+                print("**** PACKAGES:", v.packages)
+                print("**** REQS:", v.requirements)
 
     def cleanup(self):
         log.info("Removing package cache %s", self.PACKAGES_PATH)
@@ -378,7 +387,7 @@ class Workspace:
 
     # Adapted from setuptools.find_packages, and guided by the discussion here:
     # https://github.com/pypa/setuptools/issues/97
-    def find_packages(self, root, exclude, include):
+    def find_packages(self, where, exclude, include):
 
         def keep(name):
             return any(fnmatch.fnmatchcase(name, pat=pat) for pat in include)
@@ -386,9 +395,9 @@ class Workspace:
         def drop(name):
             return any(fnmatch.fnmatchcase(name, pat=pat) for pat in exclude)
 
-        folders = {os.path.dirname(p) for p in self.fs.walk(root)}
-        if root in folders:
-            folders.remove(root)
+        folders = {os.path.dirname(p) for p in self.fs.walk(where)}
+        if where in folders:
+            folders.remove(where)
         non_package_folders = set()
         # lexicographic order should be fine, since we're gonna be comparing prefixes to determine package inclusion
         sorted_folders = sorted(list(folders))
@@ -398,7 +407,7 @@ class Workspace:
             elif self.under(folder, non_package_folders):
                 continue
             elif keep(folder) and not drop(folder):
-                yield folder.replace(os.path.sep, ".").strip(".")
+                yield os.path.relpath(folder, where).replace(os.path.sep, ".").strip(".")
 
     @staticmethod
     def under(folder, non_packages):
