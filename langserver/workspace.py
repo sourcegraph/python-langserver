@@ -407,8 +407,10 @@ class Workspace:
                 non_package_folders.add(folder)
             elif self.under(folder, non_package_folders):
                 continue
-            elif keep(folder) and not drop(folder):
-                yield os.path.relpath(folder, where).replace(os.path.sep, ".").strip(".")
+            else:
+                package_name = os.path.relpath(folder, where).replace(os.path.sep, ".").strip(".")
+                if keep(package_name) and not drop(package_name):
+                    yield package_name
 
     @staticmethod
     def under(folder, non_packages):
