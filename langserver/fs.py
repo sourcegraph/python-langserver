@@ -119,7 +119,7 @@ class RemoteFileSystem(FileSystem):
             uri = doc["uri"]
             if uri.startswith("file://"):
                 uri = uri[7:]
-            if uri.startswith(path):
+            if not path or uri.startswith(path):
                 yield uri
 
     def batch_open(self, paths, parent_span):

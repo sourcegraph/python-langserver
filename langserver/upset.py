@@ -53,7 +53,7 @@ class SetupVisitor(ast.NodeVisitor):
 
         if func_name == "setup":
             self.name = kwds.get("name", None)
-            self.packages = kwds.get("packages", None)
+            self.packages = set(kwds.get("packages", None))
             self.requirements = {r for r in kwds.get("install_requires", set())}
 
     def visit_Assign(self, node):
