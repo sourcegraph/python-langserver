@@ -135,7 +135,7 @@ class SetupVisitor(ast.NodeVisitor):
             args = [self.eval_rhs(arg) for arg in node.args]
             kwds = {kwd.arg: self.eval_rhs(kwd.value) for kwd in node.keywords}
             if len(kwds) == 1 and None in kwds:  # handle "splatted" args
-                kwds = kwds[None]
+                kwds = kwds[None] or {}
         return args, kwds
 
 
