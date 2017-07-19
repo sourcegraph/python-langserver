@@ -2,6 +2,8 @@ import ast
 import os
 import os.path
 import logging
+import runpy
+import sys
 
 
 log = logging.getLogger(__name__)
@@ -142,3 +144,52 @@ def upset(src, path, workspace):
     visitor = SetupVisitor(workspace, path)
     visitor.visit(tree)
     return visitor
+
+
+def setup_info(setup_file):
+    """Returns metadata for a PyPI package by running its setup.py"""
+    setup_dict = {}
+
+    def setup_replacement(**kw):
+        iterator = kw.items()
+        for k, v in iterator:
+            setup_dict[k] = v
+
+    setuptools_mod = __import__('setuptools')
+    import distutils.core  # for some reason, __import__('distutils.core') doesn't work
+
+    # Mod setup()
+    old_setuptools_setup = setuptools_mod.setup
+    setuptools_mod.setup = setup_replacement
+    old_distutils_setup = distutils.core.setup
+    distutils.core.setup = setup_replacement
+    # Mod sys.path (changing sys.path is necessary in addition to changing the working dir,
+    # because of Python's import resolution order)
+    old_sys_path = list(sys.path)
+    sys.path.insert(0, os.path.dirname(setup_file))
+    # Change working dir (necessary because some setup.py files read relative paths from the filesystem)
+    old_wd = os.getcwd()
+    os.chdir(os.path.dirname(setup_file))
+    # Redirect stdout to stderr (*including for subprocesses*)
+    old_sys_stdout = sys.stdout  # redirects in python process
+    sys.stdout = sys.stderr
+    old_stdout = os.dup(1)  # redirects in subprocesses
+    stderr_dup = os.dup(2)
+    os.dup2(stderr_dup, 1)
+
+    try:
+        runpy.run_path(os.path.basename(setup_file), run_name='__main__')
+    finally:
+        # Restore stdout
+        os.dup2(old_stdout, 1)  # restores for subprocesses
+        os.close(stderr_dup)
+        sys.stdout = old_sys_stdout  # restores for python process
+        # Restore working dir
+        os.chdir(old_wd)
+        # Restore sys.path
+        sys.path = old_sys_path
+        # Restore setup()
+        distutils.core.setup = old_distutils_setup
+        setuptools_mod.setup = old_setuptools_setup
+
+    return setup_dict
