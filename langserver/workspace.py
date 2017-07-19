@@ -127,8 +127,9 @@ class Workspace:
             filename = os.path.basename(p)
             if filename == "setup.py":
                 v = upset(self.fs.open(p), p, self)
+                print("")
                 print("**** NAME:", v.name)
-                print("**** PACKAGES:", v.packages)
+                print("**** PKGS:", v.packages)
                 print("**** REQS:", v.requirements)
 
     def cleanup(self):

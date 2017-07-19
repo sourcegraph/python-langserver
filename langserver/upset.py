@@ -53,8 +53,8 @@ class SetupVisitor(ast.NodeVisitor):
 
         if func_name == "setup":
             self.name = kwds.get("name", None)
-            self.packages = set(kwds.get("packages", None))
-            self.requirements = {r for r in kwds.get("install_requires", set())}
+            self.packages = set(kwds.get("packages", ()))
+            self.requirements = {r for r in kwds.get("install_requires", ())}
 
     def visit_Assign(self, node):
         """
@@ -77,7 +77,7 @@ class SetupVisitor(ast.NodeVisitor):
     @staticmethod
     def eval_lhs(node):
         """
-        Takes the left-hand-side of an assignment and figures out the name that's being assigned.
+        Evaluates an l-value (i.e., figures out the name on the left hand side of an assignment).
         :param node: the left-hand-side of the assignment
         :return:
         """
@@ -91,6 +91,13 @@ class SetupVisitor(ast.NodeVisitor):
             return None
 
     def eval_rhs(self, node):
+        """
+        Evaluates an r-value (i.e., a "normal" expression that produces a first-class value). Names are looked up in
+        the simple environment that we maintain, calls are handled by `visit_Call`, and everything else falls back on
+        `ast.literal_eval`.
+        :param node: the expression to evaluate
+        :return:
+        """
         if type(node) is ast.Name:
             return self.bindings.get(node.id, None)
         elif type(node) is ast.NameConstant:
@@ -107,23 +114,21 @@ class SetupVisitor(ast.NodeVisitor):
 
     @staticmethod
     def get_func_name(node):
-        func_name = None
         if type(node) is ast.NameConstant:
-            func_name = node.value
+            return node.value
         elif type(node) is ast.Name:
-            func_name = node.id
+            return node.id
         elif type(node) is ast.Attribute:
-            func_name = node.attr
-        return func_name
-
-    def get_func_args(self, node):
-
-        if type(node) is not ast.Call:
+            return node.attr
+        else:
             return None
 
-        args = [self.eval_rhs(arg) for arg in node.args]
-        kwds = {kwd.arg: self.eval_rhs(kwd.value) for kwd in node.keywords}
-
+    def get_func_args(self, node):
+        if type(node) is not ast.Call:
+            args, kwds = [], {}
+        else:
+            args = [self.eval_rhs(arg) for arg in node.args]
+            kwds = {kwd.arg: self.eval_rhs(kwd.value) for kwd in node.keywords}
         return args, kwds
 
 
