@@ -22,15 +22,18 @@ class SetupVisitor(ast.NodeVisitor):
 
     def visit_Call(self, node):
         """
-        Look for calls to `setup` or `find_packages`.
+        Look for calls to `setup`, `find_packages`, and the `dict` constructor.
         :param node: the function call node that we're visiting
         :return: None
         """
         func_name = self.get_func_name(node.func)
-        if func_name not in ("setup", "find_packages"):
+        if func_name not in ("setup", "find_packages", "dict"):
             return
 
         args, kwds = self.get_func_args(node)
+
+        if func_name == "dict":
+            return kwds
 
         if func_name == "find_packages":
             where = os.path.dirname(self.path)
@@ -129,6 +132,8 @@ class SetupVisitor(ast.NodeVisitor):
         else:
             args = [self.eval_rhs(arg) for arg in node.args]
             kwds = {kwd.arg: self.eval_rhs(kwd.value) for kwd in node.keywords}
+            if len(kwds) == 1 and None in kwds:  # handle "splatted" args
+                kwds = kwds[None]
         return args, kwds
 
 
