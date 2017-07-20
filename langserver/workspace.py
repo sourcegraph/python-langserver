@@ -2,11 +2,8 @@ from .config import GlobalConfig
 from .fs import FileSystem, LocalFileSystem
 from .imports import get_imports
 from .fetch import fetch_dependency
-from .upset import upset
+from .upset import upset, setup_info
 from typing import Dict, Set, List
-
-import pkg_resources
-import setuptools
 
 import logging
 import sys
@@ -85,6 +82,11 @@ class Workspace:
         self.PACKAGES_PATH = os.path.join(GlobalConfig.PACKAGES_PARENT, self.key)
         log.debug("Setting Python path to %s", self.PYTHON_PATH)
         log.debug("Setting package path to %s", self.PACKAGES_PATH)
+        self.SRC_PATH = os.path.join(self.PACKAGES_PATH, "src")
+        try:
+            os.makedirs(self.SRC_PATH)
+        except FileExistsError:
+            pass
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
@@ -131,6 +133,8 @@ class Workspace:
                 print("**** NAME:", v.name)
                 print("**** PKGS:", v.packages)
                 print("**** REQS:", v.requirements)
+
+        print("**** SETUP INFO:", setup_info("/setup.py", self))
 
     def cleanup(self):
         log.info("Removing package cache %s", self.PACKAGES_PATH)

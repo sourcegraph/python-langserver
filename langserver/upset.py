@@ -4,6 +4,7 @@ import os.path
 import logging
 import runpy
 import sys
+import builtins
 
 
 log = logging.getLogger(__name__)
@@ -146,7 +147,7 @@ def upset(src, path, workspace):
     return visitor
 
 
-def setup_info(setup_file):
+def setup_info(setup_path, workspace):
     """Returns metadata for a PyPI package by running its setup.py"""
     setup_dict = {}
 
@@ -154,6 +155,37 @@ def setup_info(setup_file):
         iterator = kw.items()
         for k, v in iterator:
             setup_dict[k] = v
+
+    old_open = builtins.open
+
+    def open_replacement(
+            file,
+            mode='r',
+            buffering=-1,
+            encoding=None,
+            errors=None,
+            newline=None,
+            closefd=True
+    ):
+        print("**** SETUP WANTS TO OPEN", file)
+        text = workspace.fs.open(file)
+        local_path = file
+        target_folder = os.path.dirname(file)
+        if target_folder and not os.path.exists(target_folder):
+            os.makedirs(target_folder)
+        with old_open(local_path, "w+") as local_file:
+            local_file.write(text)
+        return old_open(
+            local_path,
+            mode=mode,
+            buffering=buffering,
+            encoding=encoding,
+            errors=errors,
+            newline=newline,
+            closefd=closefd
+        )
+
+    builtins.open = open_replacement
 
     setuptools_mod = __import__('setuptools')
     import distutils.core  # for some reason, __import__('distutils.core') doesn't work
@@ -166,10 +198,11 @@ def setup_info(setup_file):
     # Mod sys.path (changing sys.path is necessary in addition to changing the working dir,
     # because of Python's import resolution order)
     old_sys_path = list(sys.path)
-    sys.path.insert(0, os.path.dirname(setup_file))
+    sys.path.insert(0, os.path.dirname(setup_path))
     # Change working dir (necessary because some setup.py files read relative paths from the filesystem)
     old_wd = os.getcwd()
-    os.chdir(os.path.dirname(setup_file))
+    setup_dir, setup_file = os.path.split(setup_path)
+    os.chdir(workspace.SRC_PATH)
     # Redirect stdout to stderr (*including for subprocesses*)
     old_sys_stdout = sys.stdout  # redirects in python process
     sys.stdout = sys.stderr
@@ -178,8 +211,9 @@ def setup_info(setup_file):
     os.dup2(stderr_dup, 1)
 
     try:
-        runpy.run_path(os.path.basename(setup_file), run_name='__main__')
+        runpy.run_path(setup_file, run_name='__main__')
     finally:
+        builtins.open = old_open
         # Restore stdout
         os.dup2(old_stdout, 1)  # restores for subprocesses
         os.close(stderr_dup)

@@ -69,6 +69,9 @@ class RemoteFileSystem(FileSystem):
         self.conn = conn
 
     def open(self, path, parent_span=None):
+        print("**** REQUESTING FILE", path)
+        if not os.path.isabs(path):
+            path = os.path.join(os.path.sep, path)
         if parent_span is None:
             resp = self.conn.send_request("textDocument/xcontent", {
                 "textDocument": {
