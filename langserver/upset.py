@@ -147,8 +147,6 @@ def upset(src, path, workspace):
     return visitor
 
 
-# TODO(aaron): replace find_packages with our own version that works with the VFS (or replace os.walk)
-# TODO(aaron): improve the check for whether the desired file is local or remote
 def setup_info(setup_path, workspace):
     """Returns metadata for a PyPI package by running its setup.py"""
     setup_dict = {}
@@ -172,7 +170,8 @@ def setup_info(setup_path, workspace):
             closefd=True
     ):
         print("**** SETUP WANTS TO OPEN", file)
-        if not file.startswith(workspace.PYTHON_PATH):  # fetch from the VFS if it's not a workspace file
+        # if not file.startswith(workspace.PYTHON_PATH):  # fetch from the VFS if it's not a workspace file
+        if not os.path.isabs(file):  # assume absolute paths are local
             text = workspace.fs.open(file)
             target_folder = os.path.dirname(file)
             if target_folder and not os.path.exists(target_folder):
@@ -195,6 +194,8 @@ def setup_info(setup_path, workspace):
     import distutils.core  # for some reason, __import__('distutils.core') doesn't work
 
     # Mod setup()
+    old_setuptools_find_packages = setuptools_mod.find_packages
+    setuptools_mod.find_packages = workspace.find_packages_list
     old_setuptools_setup = setuptools_mod.setup
     setuptools_mod.setup = setup_replacement
     old_distutils_setup = distutils.core.setup
@@ -229,5 +230,6 @@ def setup_info(setup_path, workspace):
         # Restore setup()
         distutils.core.setup = old_distutils_setup
         setuptools_mod.setup = old_setuptools_setup
+        setuptools_mod.find_packages = old_setuptools_find_packages
 
     return setup_dict

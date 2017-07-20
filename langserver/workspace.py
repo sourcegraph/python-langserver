@@ -392,7 +392,9 @@ class Workspace:
 
     # Adapted from setuptools.find_packages, and guided by the discussion here:
     # https://github.com/pypa/setuptools/issues/97
-    def find_packages(self, where, exclude, include):
+    def find_packages(self, where="/", exclude=(), include=("*",)):
+        if not os.path.isabs(where):
+            where = os.path.join(os.path.sep, where)
 
         def keep(name):
             return any(fnmatch.fnmatchcase(name, pat=pat) for pat in include)
@@ -415,6 +417,9 @@ class Workspace:
                 package_name = os.path.relpath(folder, where).replace(os.path.sep, ".").strip(".")
                 if keep(package_name) and not drop(package_name):
                     yield package_name
+
+    def find_packages_list(self, where="/", exclude=(), include=("*",)):
+        return list(self.find_packages(where, exclude, include))
 
     @staticmethod
     def under(folder, non_packages):
