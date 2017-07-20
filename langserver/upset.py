@@ -168,6 +168,16 @@ def setup_info(setup_path, workspace):
             closefd=True
     ):
         print("**** SETUP WANTS TO OPEN", file)
+        if file.startswith(workspace.PYTHON_PATH):
+            return old_open(
+                file,
+                mode=mode,
+                buffering=buffering,
+                encoding=encoding,
+                errors=errors,
+                newline=newline,
+                closefd=closefd
+            )
         text = workspace.fs.open(file)
         local_path = file
         target_folder = os.path.dirname(file)
