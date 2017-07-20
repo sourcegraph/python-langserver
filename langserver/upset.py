@@ -4,7 +4,6 @@ import os.path
 import logging
 import runpy
 import sys
-import builtins
 
 
 log = logging.getLogger(__name__)
@@ -156,7 +155,10 @@ def setup_info(setup_path, workspace):
         for k, v in iterator:
             setup_dict[k] = v
 
-    old_open = builtins.open
+    builtins_mod = __import__("builtins")
+    old_builtins_open = builtins_mod.open
+    io_mod = __import__("io")
+    old_io_open = io_mod.open
 
     # need to swap out the `open` function with a version that works with our VFS because it's not terribly uncommon
     # for setup.py files to open other files :-/
@@ -176,9 +178,9 @@ def setup_info(setup_path, workspace):
             target_folder = os.path.dirname(file)
             if target_folder and not os.path.exists(target_folder):
                 os.makedirs(target_folder)
-            with old_open(file, "w+") as local_file:
+            with old_builtins_open(file, "w+") as local_file:
                 local_file.write(text)
-        return old_open(
+        return old_builtins_open(
             file,
             mode=mode,
             buffering=buffering,
@@ -188,7 +190,9 @@ def setup_info(setup_path, workspace):
             closefd=closefd
         )
 
-    builtins.open = open_replacement
+    # hopefully we can use the same replacement function for both of the built-in versions
+    builtins_mod.open = open_replacement
+    io_mod.open = open_replacement
 
     setuptools_mod = __import__('setuptools')
     import distutils.core  # for some reason, __import__('distutils.core') doesn't work
@@ -218,7 +222,8 @@ def setup_info(setup_path, workspace):
     try:
         runpy.run_path(setup_file, run_name='__main__')
     finally:
-        builtins.open = old_open
+        builtins_mod.open = old_builtins_open
+        io_mod.open = old_io_open
         # Restore stdout
         os.dup2(old_stdout, 1)  # restores for subprocesses
         os.close(stderr_dup)
