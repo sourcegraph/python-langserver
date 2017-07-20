@@ -148,6 +148,7 @@ def upset(src, path, workspace):
 
 
 # TODO(aaron): replace find_packages with our own version that works with the VFS (or replace os.walk)
+# TODO(aaron): improve the check for whether the desired file is local or remote
 def setup_info(setup_path, workspace):
     """Returns metadata for a PyPI package by running its setup.py"""
     setup_dict = {}
@@ -159,6 +160,8 @@ def setup_info(setup_path, workspace):
 
     old_open = builtins.open
 
+    # need to swap out the `open` function with a version that works with our VFS because it's not terribly uncommon
+    # for setup.py files to open other files :-/
     def open_replacement(
             file,
             mode='r',
@@ -169,25 +172,15 @@ def setup_info(setup_path, workspace):
             closefd=True
     ):
         print("**** SETUP WANTS TO OPEN", file)
-        if file.startswith(workspace.PYTHON_PATH):
-            return old_open(
-                file,
-                mode=mode,
-                buffering=buffering,
-                encoding=encoding,
-                errors=errors,
-                newline=newline,
-                closefd=closefd
-            )
-        text = workspace.fs.open(file)
-        local_path = file
-        target_folder = os.path.dirname(file)
-        if target_folder and not os.path.exists(target_folder):
-            os.makedirs(target_folder)
-        with old_open(local_path, "w+") as local_file:
-            local_file.write(text)
+        if not file.startswith(workspace.PYTHON_PATH):  # fetch from the VFS if it's not a workspace file
+            text = workspace.fs.open(file)
+            target_folder = os.path.dirname(file)
+            if target_folder and not os.path.exists(target_folder):
+                os.makedirs(target_folder)
+            with old_open(file, "w+") as local_file:
+                local_file.write(text)
         return old_open(
-            local_path,
+            file,
             mode=mode,
             buffering=buffering,
             encoding=encoding,
