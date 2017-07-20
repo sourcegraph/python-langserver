@@ -147,6 +147,7 @@ def upset(src, path, workspace):
     return visitor
 
 
+# TODO(aaron): replace find_packages with our own version that works with the VFS (or replace os.walk)
 def setup_info(setup_path, workspace):
     """Returns metadata for a PyPI package by running its setup.py"""
     setup_dict = {}
