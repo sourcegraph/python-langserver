@@ -90,7 +90,7 @@ class Symbol:
                     },
                     "end": {
                         "line": self.line - 1,
-                        "character": self.col,
+                        "character": self.col + len(self.name),
                     }
                 }
             },

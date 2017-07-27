@@ -52,12 +52,12 @@ if __name__ == '__main__':
 def test_extract_symbols():
     import json
     example_file = FS.open("/example_file.py", parent_span=None)
-    want = '''{"name": "MyClass", "kind": 5, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 0}}}}
-{"name": "__init__", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 2, "character": 4}, "end": {"line": 2, "character": 4}}}, "containerName": "MyClass"}
-{"name": "foo", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 4}}}, "containerName": "MyClass"}
-{"name": "_private", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 10, "character": 4}, "end": {"line": 10, "character": 4}}}, "containerName": "MyClass"}
-{"name": "baz", "kind": 12, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 13, "character": 0}, "end": {"line": 13, "character": 0}}}}
-{"name": "X", "kind": 13, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 16, "character": 0}, "end": {"line": 16, "character": 0}}}}'''
+    want = '''{"name": "MyClass", "kind": 5, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 7}}}}
+{"name": "__init__", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 2, "character": 4}, "end": {"line": 2, "character": 12}}}, "containerName": "MyClass"}
+{"name": "foo", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 7}}}, "containerName": "MyClass"}
+{"name": "_private", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 10, "character": 4}, "end": {"line": 10, "character": 12}}}, "containerName": "MyClass"}
+{"name": "baz", "kind": 12, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 13, "character": 0}, "end": {"line": 13, "character": 3}}}}
+{"name": "X", "kind": 13, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 16, "character": 0}, "end": {"line": 16, "character": 1}}}}'''
     symbols = extract_symbols(example_file, 'example_file.py')
     got = "\n".join(json.dumps(s.json_object()) for s in symbols)
     assert got == want
