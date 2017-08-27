@@ -7,6 +7,8 @@ import traceback
 import lightstep
 import opentracing
 
+from pip.utils import get_installed_distributions
+
 from .config import GlobalConfig
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
@@ -15,7 +17,6 @@ from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
-
 
 log = logging.getLogger(__name__)
 
@@ -159,7 +160,10 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
+        if "originalRootPath" in params:
+            self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
+        else:
+            self.workspace = Workspace(self.fs, self.root_path)
 
         return {
             "capabilities": {
@@ -310,6 +314,7 @@ class LangServer:
         defs = []
         defs.extend(LangServer.goto_definitions(script, request))
         defs.extend(LangServer.goto_assignments(script, request))
+
         if not defs:
             return results
 
@@ -357,6 +362,22 @@ class LangServer:
                     "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
                     "file": filename
                 }
+
+            else:
+                # defining_module cannot be found anywhere in the workspace, but it might
+                # be elsewhere in the filesystem
+                filename = os.path.basename(defining_module_path)
+                symbol_name, symbol_kind = "", ""
+                if d.description:
+                    symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
+                symbol_locator["symbol"] = {
+                    "name": symbol_name,
+                    "kind": symbol_kind,
+                    "file": filename,
+                }
+                package = get_pip_package(defining_module_path)
+                if package is not None:
+                    symbol_locator["symbol"]["package"] = { "name": package.key }
 
             if d.is_definition() and d.line is not None and d.column is not None:
                 location = {
@@ -624,6 +645,25 @@ class LangserverTCPTransport(socketserver.StreamRequestHandler):
         s = LangServer(conn)
         s.run()
 
+def get_pip_package(module_path):
+    best_pkg, best_level = None, -1
+    for pkg in get_installed_distributions():
+        l = get_ancestor_level(pkg.location, module_path)
+        if l >= 0 and (best_level == -1 or l < best_level):
+            best_pkg, best_level = pkg, l
+    return best_pkg
+
+def get_ancestor_level(ancestor, child):
+    if not child.startswith(ancestor):
+        return -1
+    ancestor_cmps = ancestor.split(os.sep)
+    child_cmps = child.split(os.sep)
+    if len(ancestor_cmps) > len(child_cmps):
+        return -1
+    for i in range(0, len(ancestor_cmps)):
+        if ancestor_cmps[i] != child_cmps[i]:
+            return -1
+    return len(child_cmps) - len(ancestor_cmps)
 
 def main():
     import argparse
@@ -654,7 +694,7 @@ def main():
 
     if args.mode == "stdio":
         logging.info("Reading on stdin, writing on stdout")
-        s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
+        s = LangServer(conn=JSONRPC2Connection(ReadWriter(sys.stdin, sys.stdout)))
         s.run()
     elif args.mode == "tcp":
         host, addr = "0.0.0.0", args.addr

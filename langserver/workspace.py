@@ -200,7 +200,8 @@ class Workspace:
         package_paths = {}
         top_level_modules = set()
         for path in all_paths:
-            folder, filename = os.path.split(path)
+            relpath = os.path.relpath(path, self.PROJECT_ROOT)
+            folder, filename = os.path.split(relpath)
             if filename == "__init__.py":
                 package_paths[folder] = True
             if folder == "/"\
@@ -213,8 +214,6 @@ class Workspace:
         for path in package_paths:
             if path.startswith("/"):
                 path = path[1:]
-            else:
-                continue
             path_components = path.split("/")
             if len(path_components) > 1:
                 continue
@@ -293,12 +292,6 @@ class Workspace:
 
     def get_module_by_path(self, path: str) -> Module:
         return self.module_paths.get(path, None)
-
-    def get_modules(self, qualified_name: str) -> List[Module]:
-        project_module = self.project.get(qualified_name, None)
-        external_module = self.find_external_module(qualified_name)
-        stdlib_module = self.stdlib.get(qualified_name, None)
-        return list(filter(None, [project_module, external_module, stdlib_module]))
 
     def get_dependencies(self, parent_span: opentracing.Span) -> list:
         top_level_stdlib = {p.split(".")[0] for p in self.stdlib}
