@@ -50,7 +50,7 @@ class FileSystem(ABC):
 
 class LocalFileSystem(FileSystem):
     def open(self, path, parent_span=None):
-        with open(path) as open_file:
+        with open(path, encoding='utf-8') as open_file:
             return open_file.read()
 
     def listdir(self, path, parent_span=None):
@@ -185,7 +185,7 @@ class TestFileSystem(FileSystem):
             path = os.path.join(self.root, os.path.relpath(path, "/"))
         else:
             path = os.path.join(self.root, path)
-        with open(path) as open_file:
+        with open(path, encoding='utf-8') as open_file:
             return open_file.read()
 
     def batch_open(self, paths, parent_span):
