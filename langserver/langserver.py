@@ -160,10 +160,7 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        if "originalRootPath" in params:
-            self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
-        else:
-            self.workspace = Workspace(self.fs, self.root_path)
+        self.workspace = Workspace(self.fs, self.root_path, params.get("originalRootPath", ""))
 
         return {
             "capabilities": {
@@ -314,7 +311,6 @@ class LangServer:
         defs = []
         defs.extend(LangServer.goto_definitions(script, request))
         defs.extend(LangServer.goto_assignments(script, request))
-
         if not defs:
             return results
 
@@ -646,6 +642,9 @@ class LangserverTCPTransport(socketserver.StreamRequestHandler):
         s.run()
 
 def get_pip_package(module_path):
+    """get_pip_package accepts a filesystem path to a Python module and returns the pip package
+    that provides that module.
+    """
     best_pkg, best_level = None, -1
     for pkg in get_installed_distributions():
         l = get_ancestor_level(pkg.location, module_path)
@@ -654,15 +653,15 @@ def get_pip_package(module_path):
     return best_pkg
 
 def get_ancestor_level(ancestor, child):
+    """get_ancestor_level returns the number of path components a child path has in addition to
+    an ancestor path. If the child is not a child of the ancestor, returns -1.
+    """
     if not child.startswith(ancestor):
         return -1
     ancestor_cmps = ancestor.split(os.sep)
     child_cmps = child.split(os.sep)
-    if len(ancestor_cmps) > len(child_cmps):
+    if len(ancestor_cmps) > len(child_cmps) or ancestor_cmps != child_cmps[:len(ancestor_cmps)]:
         return -1
-    for i in range(0, len(ancestor_cmps)):
-        if ancestor_cmps[i] != child_cmps[i]:
-            return -1
     return len(child_cmps) - len(ancestor_cmps)
 
 def main():

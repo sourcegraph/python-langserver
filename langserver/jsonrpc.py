@@ -5,7 +5,6 @@ import queue
 import random
 import threading
 import uuid
-import sys
 from collections import deque
 
 log = logging.getLogger(__name__)

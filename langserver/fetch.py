@@ -3,7 +3,6 @@ import subprocess
 import os
 import shutil
 import logging
-import sys
 
 import pip
 import pip.status_codes

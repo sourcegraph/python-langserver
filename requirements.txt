@@ -1,6 +1,6 @@
 -e git://github.com/sourcegraph/jedi.git@9a3e7256df2e6099207fd7289141885ec17ebec7#egg=jedi
 
--e git://github.com/sourcegraph/pip#egg=pip
+-e git://github.com/sourcegraph/pip@94070088f5c458802c83bab37e704365b041acd8#egg=pip
 
 opentracing
 lightstep
