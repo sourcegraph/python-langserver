@@ -26,6 +26,9 @@ setup(name='python-langserver',
               'jedi',
               'pip',
       ],
+      tests_require=[
+              'pytest',
+      ],
       dependency_links=[
               'git+https://github.com/sourcegraph/pip.git@94070088f5c458802c83bab37e704365b041acd8#egg=pip',
               'git+https://github.com/sourcegraph/jedi.git@9a3e7256df2e6099207fd7289141885ec17ebec7#egg=jedi',
