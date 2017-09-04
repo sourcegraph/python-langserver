@@ -341,23 +341,26 @@ class LangServer:
                     "file": filename
                 }
 
-            elif defining_module and defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_PATH)
-                filename = os.path.basename(defining_module_path)
-                symbol_name = ""
-                symbol_kind = ""
-                if d.description:
-                    symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
-                symbol_locator["symbol"] = {
-                    "package": {
-                        "name": "cpython",
-                    },
-                    "name": symbol_name,
-                    "container": defining_module.qualified_name,
-                    "kind": symbol_kind,
-                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
-                    "file": filename
-                }
+            # TODO(akhleung): every defining_module appears to be marked with is_stdlib=True
+            # when run locally
+
+            # elif defining_module and defining_module.is_stdlib:
+            #     rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_PATH)
+            #     filename = os.path.basename(defining_module_path)
+            #     symbol_name = ""
+            #     symbol_kind = ""
+            #     if d.description:
+            #         symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
+            #     symbol_locator["symbol"] = {
+            #         "package": {
+            #             "name": "cpython",
+            #         },
+            #         "name": symbol_name,
+            #         "container": defining_module.qualified_name,
+            #         "kind": symbol_kind,
+            #         "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
+            #         "file": filename
+            #     }
 
             else:
                 # defining_module cannot be found anywhere in the workspace, but it might
@@ -373,7 +376,8 @@ class LangServer:
                 }
                 package = get_pip_package(defining_module_path)
                 if package is not None:
-                    symbol_locator["symbol"]["package"] = { "name": package.key }
+                    symbol_locator["symbol"]["package"] = { "name": package }
+
 
             if d.is_definition() and d.line is not None and d.column is not None:
                 location = {
@@ -646,10 +650,10 @@ def get_pip_package(module_path):
     that provides that module.
     """
     best_pkg, best_level = None, -1
-    for pkg in get_installed_distributions():
+    for pkg in get_installed_distributions(local_only=False):
         l = get_ancestor_level(pkg.location, module_path)
         if l >= 0 and (best_level == -1 or l < best_level):
-            best_pkg, best_level = pkg, l
+            best_pkg, best_level = pkg.key, l
     return best_pkg
 
 def get_ancestor_level(ancestor, child):
