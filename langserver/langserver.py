@@ -7,6 +7,8 @@ import traceback
 import lightstep
 import opentracing
 
+from pip.utils import get_installed_distributions
+
 from .config import GlobalConfig
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
@@ -15,7 +17,6 @@ from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
-
 
 log = logging.getLogger(__name__)
 
@@ -159,7 +160,7 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
+        self.workspace = Workspace(self.fs, self.root_path, params.get("originalRootPath", ""))
 
         return {
             "capabilities": {
@@ -340,23 +341,43 @@ class LangServer:
                     "file": filename
                 }
 
-            elif defining_module and defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_PATH)
+            # TODO(akhleung): every defining_module appears to be marked with is_stdlib=True
+            # when run locally
+
+            # elif defining_module and defining_module.is_stdlib:
+            #     rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_PATH)
+            #     filename = os.path.basename(defining_module_path)
+            #     symbol_name = ""
+            #     symbol_kind = ""
+            #     if d.description:
+            #         symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
+            #     symbol_locator["symbol"] = {
+            #         "package": {
+            #             "name": "cpython",
+            #         },
+            #         "name": symbol_name,
+            #         "container": defining_module.qualified_name,
+            #         "kind": symbol_kind,
+            #         "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
+            #         "file": filename
+            #     }
+
+            else:
+                # defining_module cannot be found anywhere in the workspace, but it might
+                # be elsewhere in the filesystem
                 filename = os.path.basename(defining_module_path)
-                symbol_name = ""
-                symbol_kind = ""
+                symbol_name, symbol_kind = "", ""
                 if d.description:
                     symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
                 symbol_locator["symbol"] = {
-                    "package": {
-                        "name": "cpython",
-                    },
                     "name": symbol_name,
-                    "container": defining_module.qualified_name,
                     "kind": symbol_kind,
-                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
-                    "file": filename
+                    "file": filename,
                 }
+                package = get_pip_package(defining_module_path)
+                if package is not None:
+                    symbol_locator["symbol"]["package"] = { "name": package }
+
 
             if d.is_definition() and d.line is not None and d.column is not None:
                 location = {
@@ -624,6 +645,28 @@ class LangserverTCPTransport(socketserver.StreamRequestHandler):
         s = LangServer(conn)
         s.run()
 
+def get_pip_package(module_path):
+    """get_pip_package accepts a filesystem path to a Python module and returns the pip package
+    that provides that module.
+    """
+    best_pkg, best_level = None, -1
+    for pkg in get_installed_distributions(local_only=False):
+        l = get_ancestor_level(pkg.location, module_path)
+        if l >= 0 and (best_level == -1 or l < best_level):
+            best_pkg, best_level = pkg.key, l
+    return best_pkg
+
+def get_ancestor_level(ancestor, child):
+    """get_ancestor_level returns the number of path components a child path has in addition to
+    an ancestor path. If the child is not a child of the ancestor, returns -1.
+    """
+    if not child.startswith(ancestor):
+        return -1
+    ancestor_cmps = ancestor.split(os.sep)
+    child_cmps = child.split(os.sep)
+    if len(ancestor_cmps) > len(child_cmps) or ancestor_cmps != child_cmps[:len(ancestor_cmps)]:
+        return -1
+    return len(child_cmps) - len(ancestor_cmps)
 
 def main():
     import argparse
@@ -654,7 +697,7 @@ def main():
 
     if args.mode == "stdio":
         logging.info("Reading on stdin, writing on stdout")
-        s = LangServer(conn=ReadWriter(sys.stdin, sys.stdout))
+        s = LangServer(conn=JSONRPC2Connection(ReadWriter(sys.stdin, sys.stdout)))
         s.run()
     elif args.mode == "tcp":
         host, addr = "0.0.0.0", args.addr
