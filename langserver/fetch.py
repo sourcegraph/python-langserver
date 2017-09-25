@@ -20,7 +20,12 @@ def fetch_dependency(module_name: str, install_path: str):
     with tempfile.TemporaryDirectory() as download_folder:
         log.info("Attempting to download package %s to %s", module_name, download_folder, exc_info=True)
         # TODO: check the result status
-        result = pip.main(["download", "--no-deps", "-d", download_folder, module_name])
+
+        index_url = os.environ.get('INDEX_URL')
+        if index_url is not None:
+            result = pip.main(["download", "--no-deps", "-i", index_url, "-d", download_folder, module_name])
+        else:
+            result = pip.main(["download", "--no-deps", "-d", download_folder, module_name])
         if result != pip.status_codes.SUCCESS:
             log.error("Unable to fetch package %s", module_name)
             return
