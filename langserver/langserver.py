@@ -16,7 +16,6 @@ from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
 
-
 log = logging.getLogger(__name__)
 
 
@@ -110,7 +109,8 @@ class LangServer:
                 self.conn.write_response(request["id"], resp)
 
     def new_script(self, *args, **kwargs):
-        return RemoteJedi(self.fs, self.workspace, self.root_path).new_script(*args, **kwargs)
+        return RemoteJedi(self.fs, self.workspace, self.root_path).new_script(
+            *args, **kwargs)
 
     @staticmethod
     def goto_assignments(script, request):
@@ -159,7 +159,8 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
+        self.workspace = Workspace(self.fs, self.root_path,
+                                   params["originalRootPath"])
 
         return {
             "capabilities": {
@@ -179,7 +180,8 @@ class LangServer:
 
         self.fs = fs
         self.streaming = False
-        self.workspace = Workspace(self.fs, self.root_path, params["originalRootPath"])
+        self.workspace = Workspace(self.fs, self.root_path,
+                                   params["originalRootPath"])
 
         return {
             "capabilities": {
@@ -207,7 +209,9 @@ class LangServer:
             column=pos["character"],
             parent_span=parent_span)
 
-        defs = LangServer.goto_definitions(script, request) or LangServer.goto_assignments(script, request)
+        defs = LangServer.goto_definitions(
+            script, request) or LangServer.goto_assignments(script, request)
+
         # The code from this point onwards is modified from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
         def generate_signature(completion):
@@ -288,7 +292,9 @@ class LangServer:
             return {}
 
     def serve_definition(self, request):
-        return list(filter(None, (d["location"] for d in self.serve_x_definition(request))))
+        return list(
+            filter(None, (d["location"]
+                          for d in self.serve_x_definition(request))))
 
     def serve_x_definition(self, request):
         params = request["params"]
@@ -315,9 +321,11 @@ class LangServer:
 
         for d in defs:
             defining_module_path = d.module_path
-            defining_module = self.workspace.get_module_by_path(defining_module_path)
+            defining_module = self.workspace.get_module_by_path(
+                defining_module_path)
 
-            if not defining_module and (not d.is_definition() or d.line is None or d.column is None):
+            if not defining_module and (not d.is_definition() or
+                                        d.line is None or d.column is None):
                 continue
 
             symbol_locator = {"symbol": None, "location": None}
@@ -329,7 +337,8 @@ class LangServer:
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
+                    symbol_name, symbol_kind = LangServer.name_and_kind(
+                        d.description)
                 symbol_locator["symbol"] = {
                     "package": {
                         "name": defining_module.qualified_name.split(".")[0],
@@ -341,12 +350,14 @@ class LangServer:
                 }
 
             elif defining_module and defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path, self.workspace.PYTHON_PATH)
+                rel_path = os.path.relpath(defining_module_path,
+                                           self.workspace.PYTHON_PATH)
                 filename = os.path.basename(defining_module_path)
                 symbol_name = ""
                 symbol_kind = ""
                 if d.description:
-                    symbol_name, symbol_kind = LangServer.name_and_kind(d.description)
+                    symbol_name, symbol_kind = LangServer.name_and_kind(
+                        d.description)
                 symbol_locator["symbol"] = {
                     "package": {
                         "name": "cpython",
@@ -354,11 +365,13 @@ class LangServer:
                     "name": symbol_name,
                     "container": defining_module.qualified_name,
                     "kind": symbol_kind,
-                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH, rel_path),
+                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH,
+                                         rel_path),
                     "file": filename
                 }
 
-            if d.is_definition() and d.line is not None and d.column is not None:
+            if d.is_definition(
+            ) and d.line is not None and d.column is not None:
                 location = {
                     # TODO(renfred) determine why d.module_path is empty.
                     "uri": "file://" + (d.module_path or path),
@@ -375,7 +388,8 @@ class LangServer:
                 }
             # add a position hint in case this eventually gets passed to an operation that could use it
             if symbol_locator["symbol"]:
-                symbol_locator["symbol"]["position"] = location["range"]["start"]
+                symbol_locator["symbol"]["position"] = location["range"][
+                    "start"]
 
             # set the full location if the definition is in this workspace
             if not defining_module or not defining_module.is_external:
@@ -390,7 +404,10 @@ class LangServer:
 
         # if there's more than one definition, go ahead and remove the ones that are the same as the input position
         if len(unique_results) > 1:
-            unique_results = [ur for ur in unique_results if not LangServer.is_circular(pos, ur["location"])]
+            unique_results = [
+                ur for ur in unique_results
+                if not LangServer.is_circular(pos, ur["location"])
+            ]
         return unique_results
 
     @staticmethod
@@ -460,7 +477,8 @@ class LangServer:
                 "value": []
             }]
         }
-        self.conn.send_notification("$/partialResult", partial_initializer) if self.streaming else None
+        self.conn.send_notification(
+            "$/partialResult", partial_initializer) if self.streaming else None
         json_patch = []
         package_cache_path = os.path.abspath(self.workspace.PACKAGES_PATH)
         for u in usages:
@@ -495,7 +513,8 @@ class LangServer:
             "id": request["id"],
             "patch": json_patch,
         }
-        self.conn.send_notification("$/partialResult", partial_result) if self.streaming else None
+        self.conn.send_notification("$/partialResult",
+                                    partial_result) if self.streaming else None
         return refs
 
     def serve_x_references(self, request):
@@ -518,7 +537,8 @@ class LangServer:
                 "value": []
             }]
         }
-        self.conn.send_notification("$/partialResult", partial_initializer) if self.streaming else None
+        self.conn.send_notification(
+            "$/partialResult", partial_initializer) if self.streaming else None
         # We can't use Jedi to get x-refs because we only have a symbol descriptor, not a source location and source
         # file. I tried fetching the package that's mentioned in the symbol descriptor and providing the source of the
         # definition for Jedi, but that didn't seem to work, maybe because the fetched package is in the local FS
@@ -526,7 +546,8 @@ class LangServer:
         # Jedi or rewrite the FS abstraction, it's easier to manually parse the source files and search the ASTs. We
         # can still use Jedi to eliminate false positives by ensuring that each returned reference has a definition
         # that matches the symbol descriptor.
-        for ref_batch in get_references(package_name, symbol_name, self.fs, self.root_path, parent_span):
+        for ref_batch in get_references(package_name, symbol_name, self.fs,
+                                        self.root_path, parent_span):
             json_patch = []
             for r in ref_batch:
                 location = {
@@ -559,7 +580,8 @@ class LangServer:
                 "id": request["id"],
                 "patch": json_patch,
             }
-            self.conn.send_notification("$/partialResult", partial_result) if self.streaming else None
+            self.conn.send_notification(
+                "$/partialResult", partial_result) if self.streaming else None
             if len(refs) >= limit:
                 break
 
@@ -570,7 +592,8 @@ class LangServer:
         params = request["params"]
 
         if "symbol" in params:
-            return targeted_symbol(params["symbol"], self.fs, self.root_path, parent_span)
+            return targeted_symbol(params["symbol"], self.fs, self.root_path,
+                                   parent_span)
 
         if self.all_symbols is None:
             self.all_symbols = workspace_symbols(self.fs, self.root_path,
