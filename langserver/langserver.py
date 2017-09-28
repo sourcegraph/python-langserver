@@ -150,7 +150,8 @@ class LangServer:
 
     def serve_initialize(self, request):
         params = request["params"]
-        self.root_path = path_from_uri(params["rootPath"])
+        self.root_path = path_from_uri(
+            params.get("rootUri") or params.get("rootPath") or "")
 
         caps = params.get("capabilities", {})
         if caps.get("xcontentProvider") and caps.get("xfilesProvider"):
@@ -159,8 +160,10 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        self.workspace = Workspace(self.fs, self.root_path,
-                                   params["originalRootPath"])
+        # Sourcegraph also passes in a rootUri which has commit information
+        originalRootUri = params.get("originalRootUri") or params.get(
+            "originalRootPath") or ""
+        self.workspace = Workspace(self.fs, self.root_path, originalRootUri)
 
         return {
             "capabilities": {
