@@ -46,6 +46,14 @@ if __name__ == '__main__':
     A()
     print(fnmatch.fnmatchcase("test","t*"))
 ''',
+    '/c.py':
+    '''
+class C(object):
+    def bar(self):
+        foo = ""
+        printf(foo)
+        return str("This is a string literal")
+''',
 })
 
 
@@ -71,6 +79,35 @@ def test_hover_on_def():
             'language': 'python',
             'value': 'class A(param type(self))'
         }, 'A doc string']
+    }
+
+
+def test_hover_on_string_literal():
+    h = hover('/c.py', 5, 21)
+    assert h == {}  # expect no hover on a string literal
+
+
+def test_hover_on_string_variable():
+    h = hover('/c.py', 4, 15)
+    assert h == {'contents': [{'language': 'python', 'value': 'str'}]}
+
+
+def test_hover_on_str():
+    h = hover('/c.py', 5, 16)
+    assert h == {
+        'contents': [{'language': 'python', 'value': 'class str(param object)'},
+                     "str(object='') -> str\n"
+                     'str(bytes_or_buffer[, encoding[, errors]]) -> str\n'
+                     '\n'
+                     'Create a new string object from the given object. If encoding '
+                     'or\n'
+                     'errors is specified, then the object must expose a data buffer\n'
+                     'that will be decoded using the given encoding and error '
+                     'handler.\n'
+                     'Otherwise, returns the result of object.__str__() (if defined)\n'
+                     'or repr(object).\n'
+                     'encoding defaults to sys.getdefaultencoding().\n'
+                     "errors defaults to 'strict'."]
     }
 
 

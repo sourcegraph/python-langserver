@@ -212,8 +212,16 @@ class LangServer:
             column=pos["character"],
             parent_span=parent_span)
 
-        defs = LangServer.goto_definitions(
-            script, request) or LangServer.goto_assignments(script, request)
+        # get the Jedi Definition instances from which to extract the hover information. We filter out string literal Definitions
+        # (they are useless and distracting), which have exactly one Definition named 'str', while preserving Definitions
+        # for variables with inferred 'str' types and references to the builtin `str` function.
+        defs = LangServer.goto_definitions(script, request)
+        if len(defs) == 1 and defs[0].full_name == 'str' and defs[0].in_builtin_module() and defs[0].type == 'instance':
+            if len(LangServer.goto_assignments(script, request)) == 0:
+                # omit string literal Definitions
+                defs = []
+        elif len(defs) == 0:
+            defs = LangServer.goto_assignments(script, request)
 
         # The code from this point onwards is modified from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
@@ -303,7 +311,8 @@ class LangServer:
         params = request["params"]
         pos = params["position"]
         path = path_from_uri(params["textDocument"]["uri"])
-        pos["path"] = path  # will be useful for filtering out circular/useless definitions
+        # will be useful for filtering out circular/useless definitions
+        pos["path"] = path
         parent_span = request["span"]
         source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
