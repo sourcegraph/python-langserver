@@ -266,8 +266,8 @@ class LangServer:
                         # jedi returns an empty string for compiled objects
                         description = definition.docstring().strip()
                 if definition.type == 'module':
-                    signature = definition.full_name
                     try:
+                        signature = definition.full_name
                         description = definition.docstring(raw=True).strip()
                     except Exception:
                         description = ''
