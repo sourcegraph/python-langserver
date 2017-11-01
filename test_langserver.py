@@ -26,7 +26,7 @@ class MyClass(object):
 
     def _private(self):
         pass
-    
+
 def baz():
     pass
 
@@ -52,14 +52,15 @@ if __name__ == '__main__':
 def test_extract_symbols():
     import json
     example_file = FS.open("/example_file.py", parent_span=None)
-    want = '''{"name": "MyClass", "kind": 5, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 1, "character": 0}, "end": {"line": 1, "character": 7}}}}
-{"name": "__init__", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 2, "character": 4}, "end": {"line": 2, "character": 12}}}, "containerName": "MyClass"}
-{"name": "foo", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 5, "character": 4}, "end": {"line": 5, "character": 7}}}, "containerName": "MyClass"}
-{"name": "_private", "kind": 6, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 10, "character": 4}, "end": {"line": 10, "character": 12}}}, "containerName": "MyClass"}
-{"name": "baz", "kind": 12, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 13, "character": 0}, "end": {"line": 13, "character": 3}}}}
-{"name": "X", "kind": 13, "location": {"uri": "file://example_file.py", "range": {"start": {"line": 16, "character": 0}, "end": {"line": 16, "character": 1}}}}'''
+    want = '''{"kind": 5, "location": {"range": {"end": {"character": 7, "line": 1}, "start": {"character": 0, "line": 1}}, "uri": "file://example_file.py"}, "name": "MyClass"}
+{"containerName": "MyClass", "kind": 6, "location": {"range": {"end": {"character": 12, "line": 2}, "start": {"character": 4, "line": 2}}, "uri": "file://example_file.py"}, "name": "__init__"}
+{"containerName": "MyClass", "kind": 6, "location": {"range": {"end": {"character": 7, "line": 5}, "start": {"character": 4, "line": 5}}, "uri": "file://example_file.py"}, "name": "foo"}
+{"containerName": "MyClass", "kind": 6, "location": {"range": {"end": {"character": 12, "line": 10}, "start": {"character": 4, "line": 10}}, "uri": "file://example_file.py"}, "name": "_private"}
+{"kind": 12, "location": {"range": {"end": {"character": 3, "line": 13}, "start": {"character": 0, "line": 13}}, "uri": "file://example_file.py"}, "name": "baz"}
+{"kind": 13, "location": {"range": {"end": {"character": 1, "line": 16}, "start": {"character": 0, "line": 16}}, "uri": "file://example_file.py"}, "name": "X"}'''
     symbols = extract_symbols(example_file, 'example_file.py')
-    got = "\n".join(json.dumps(s.json_object()) for s in symbols)
+    got = "\n".join(json.dumps(s.json_object(), sort_keys=True)
+                    for s in symbols)
     assert got == want
 
 
@@ -93,8 +94,8 @@ def test_hover_stdlib():
             'language': 'python',
             'value': 'def fnmatchcase(param name, param pat)'
         },
-         "Test whether FILENAME matches PATTERN, including case.\n\nThis is a version of fnmatch() which doesn't case-normalize\nits arguments."
-         ]
+            "Test whether FILENAME matches PATTERN, including case.\n\nThis is a version of fnmatch() which doesn't case-normalize\nits arguments."
+        ]
     }
 
 
