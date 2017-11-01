@@ -16,4 +16,6 @@ To try it in [Visual Studio Code](https://code.visualstudio.com), install the [v
 
 ## Tests
 
-Run the tests via `pytest`. Note that some tests may fail if you're using `virtualenv` instead of the system Python3.
+Run `make test`.
+
+The tests require `pytest`. Note that some tests may fail if you're using `virtualenv` instead of the system Python.
