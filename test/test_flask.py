@@ -377,7 +377,7 @@ def test_stdlib_definition():
                 'path': 'Lib/datetime.py',
                 'file': 'datetime.py',
                 'position': {
-                    'line': 335,
+                    'line': 318,
                     'character': 6
                 }
             },
