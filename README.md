@@ -6,9 +6,16 @@ This is a language server for Python that adheres to the [Language Server Protoc
 
 ## Getting started
 
-You'll need python version 3.5 or greater.
+You'll need Python version 3.5 or greater.
 
 1. `pip3 install -r requirements.txt`
 1. `python3 python-langserver.py --mode=tcp --addr=2087`
 
 To try it in [Visual Studio Code](https://code.visualstudio.com), install the [vscode-client](https://github.com/sourcegraph/langserver/tree/master/vscode-client) extension and then open up a `.py` file.
+
+
+## Tests
+
+Run `make test`.
+
+The tests require `pytest`. Note that some tests may fail if you're using `virtualenv` instead of the system Python.
