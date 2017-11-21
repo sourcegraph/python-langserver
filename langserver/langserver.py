@@ -47,7 +47,7 @@ class LangServer:
                 log.error("Unexpected error: %s", e, exc_info=True)
 
     def handle(self, request):
-        if "meta" in request:
+        if "meta" in request and type(request["meta"]) == dict and len(request["meta"]) > 0:
             span_context = opentracing.tracer.extract(
                 opentracing.Format.TEXT_MAP, request["meta"])
         else:
