@@ -736,6 +736,3 @@ def test_definition_of_definition():
             }
         }
     ]
-
-
-flask_workspace.exit()
