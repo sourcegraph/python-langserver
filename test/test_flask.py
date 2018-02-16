@@ -185,34 +185,6 @@ def test_local_package_import_definition():
                     'name': 'flask'
                 },
                 'name': 'json',
-                'container': 'flask.json',
-                'kind': 'module',
-                'file': '__init__.py',
-                'position': {
-                    'line': 0,
-                    'character': 0
-                }
-            },
-            'location': {
-                'uri': 'file:///flask/json/__init__.py',
-                'range': {
-                    'start': {
-                        'line': 0,
-                        'character': 0
-                    },
-                    'end': {
-                        'line': 0,
-                        'character': 4
-                    }
-                }
-            }
-        },
-        {
-            'symbol': {
-                'package': {
-                    'name': 'flask'
-                },
-                'name': 'json',
                 'container': 'flask',
                 'kind': 'module',
                 'file': '__init__.py',
@@ -320,23 +292,7 @@ def test_cross_repo_import_definition():
                 }
             },
             'location': None
-        },
-        {
-            'symbol': {
-                'package': {
-                    'name': 'jinja2'
-                },
-                'name': 'Markup',
-                'container': 'jinja2',
-                'kind': 'class',
-                'file': '__init__.py',
-                'position': {
-                    'line': 55,
-                    'character': 25
-                }
-            },
-            'location': None
-        },
+        }
     ]
 
 
@@ -364,8 +320,9 @@ def test_stdlib_hover():
 
 
 def test_stdlib_definition():
-    result = flask_workspace.definition("/flask/app.py", 306, 48)
-    assert result == [
+    result = flask_workspace.definition("/flask/app.py", 306, 48)[0]
+    res = (result["location"]["uri"], result["location"]["range"]["start"]["line"], result["location"]["range"]["start"]["character"])
+    defs = [
         {
             'symbol': {
                 'package': {
@@ -377,7 +334,7 @@ def test_stdlib_definition():
                 'path': 'Lib/datetime.py',
                 'file': 'datetime.py',
                 'position': {
-                    'line': 318,
+                    'line': 335,
                     'character': 6
                 }
             },
@@ -412,7 +369,16 @@ def test_stdlib_definition():
             }
         },
     ]
+    check_defs(res, defs)
 
+def check_defs(start_location, defs):
+    current_location = start_location
+    for i in range(len(defs) - 1):
+        file, line, col = start_location
+        file = file.replace("http://","")
+        result = flask_workspace.definition(file, line, col)[0]
+        assert result == defs[i]
+        current_location = (result["symbol"]["file"], result["symbol"]["position"]["line"], result["symbol"]["position"]["character"])
 
 def test_local_references():
     result = flask_workspace.references("/flask/cli.py", 34, 4)
