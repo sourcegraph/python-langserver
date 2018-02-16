@@ -325,9 +325,7 @@ class LangServer:
             parent_span=parent_span)
 
         results = []
-        defs = []
-        defs.extend(LangServer.goto_definitions(script, request))
-        defs.extend(LangServer.goto_assignments(script, request))
+        defs = LangServer.goto_assignments(script, request)
         if not defs:
             return results
 
@@ -341,7 +339,6 @@ class LangServer:
                 continue
 
             symbol_locator = {"symbol": None, "location": None}
-
             if defining_module and not defining_module.is_stdlib:
                 # the module path doesn't map onto the repository structure because we're not fully installing
                 # dependency packages, so don't include it in the symbol descriptor
@@ -382,11 +379,13 @@ class LangServer:
                     "file": filename
                 }
 
+            location = None
+
             if d.is_definition(
-            ) and d.line is not None and d.column is not None:
+            ) and d.module_path is not None and d.line is not None and d.column is not None:
                 location = {
                     # TODO(renfred) determine why d.module_path is empty.
-                    "uri": "file://" + (d.module_path or path),
+                    "uri": "file://" + d.module_path,
                     "range": {
                         "start": {
                             "line": d.line - 1,
@@ -398,8 +397,9 @@ class LangServer:
                         },
                     },
                 }
+
             # add a position hint in case this eventually gets passed to an operation that could use it
-            if symbol_locator["symbol"]:
+            if symbol_locator["symbol"] and location:
                 symbol_locator["symbol"]["position"] = location["range"][
                     "start"]
 
