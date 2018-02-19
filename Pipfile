@@ -1,0 +1,23 @@
+[[source]]
+
+url = "https://pypi.python.org/simple"
+verify_ssl = true
+name = "pypi"
+
+
+[packages]
+
+jedi = {git = "git://github.com/sourcegraph/jedi.git", editable = true, ref = "9a3e7256df2e6099207fd7289141885ec17ebec7"}
+opentracing = "*"
+lightstep = "*"
+
+
+[dev-packages]
+
+py = "==1.4.34"
+pytest = "==3.2.3"
+
+
+[requires]
+
+python_version = "3.6"
