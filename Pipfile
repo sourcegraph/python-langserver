@@ -10,6 +10,7 @@ name = "pypi"
 jedi = {git = "git://github.com/sourcegraph/jedi.git", editable = true, ref = "9a3e7256df2e6099207fd7289141885ec17ebec7"}
 opentracing = "*"
 lightstep = "*"
+toml = "*"
 
 
 [dev-packages]
