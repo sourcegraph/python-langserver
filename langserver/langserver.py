@@ -600,6 +600,7 @@ class LangServer:
         return refs
 
     def serve_symbols(self, request):
+        print('### REQUEST', request)
         parent_span = request["span"]
         params = request["params"]
 
