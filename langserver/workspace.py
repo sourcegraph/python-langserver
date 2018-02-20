@@ -4,6 +4,7 @@ from .imports import get_imports
 from .fetch import fetch_dependency
 from typing import Dict, Set, List
 
+import json
 import logging
 import sys
 import os
@@ -93,7 +94,9 @@ class Workspace:
         self.indexing_lock = threading.Lock()
         # keep track of which packages we've tried to fetch, so we don't keep trying if they were unfetchable
         self.fetched = set()
+        self.configured_deps = {}
 
+        self.populate_configured_deps()
         self.index_project()
 
         for n in sys.builtin_module_names:
@@ -184,6 +187,21 @@ class Workspace:
             self.module_paths[os.path.abspath(the_module.path)] = the_module
             self.fetched.add(basename)
 
+    def populate_configured_deps(self):
+        all_paths = list(self.fs.walk(self.PROJECT_ROOT))
+        print('#ALL PATHS', all_paths)
+        if '/pyconfig.json' in all_paths:
+            print('### PYCONFIG EXISTS')
+            json_data = self.fs.open('/pyconfig.json')
+            print ('### JSON DATA', json_data)
+            parsed_json = json.loads(json_data)
+            print ('### PARSED JSON', parsed_json)
+            packages = parsed_json['packages']
+            for package in packages:
+                name = package['package_name']
+                self.configured_deps[name] = package
+            print('### configured deps', self.configured_deps )
+
     def index_project(self):
         """
         This method traverses all the project files (starting with self.PROJECT_ROOT) and indexes all the packages and
@@ -268,7 +286,7 @@ class Workspace:
         if package_name not in self.fetched:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
-            fetch_dependency(package_name, self.PACKAGES_PATH)
+            fetch_dependency(package_name, self.PACKAGES_PATH, self.configured_deps)
             self.index_external_modules()
             self.indexing_lock.release()
         the_module = self.dependencies.get(qualified_name, None)

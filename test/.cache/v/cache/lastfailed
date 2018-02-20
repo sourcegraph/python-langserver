@@ -1,1 +1,6 @@
-{}
+{
+  "test_flask.py::test_cross_repo_definition": true,
+  "test_flask.py::test_stdlib_definition": true,
+  "test_flask.py::test_x_packages": true,
+  "test_jedi.py::test_x_packages": true
+}
