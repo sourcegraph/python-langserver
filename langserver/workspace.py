@@ -2,6 +2,7 @@ from .config import GlobalConfig
 from .fs import FileSystem, LocalFileSystem
 from .imports import get_imports
 from .fetch import fetch_dependency
+from .package_configuation import ConfigParser
 from typing import Dict, Set, List
 
 import json
@@ -95,8 +96,9 @@ class Workspace:
         # keep track of which packages we've tried to fetch, so we don't keep trying if they were unfetchable
         self.fetched = set()
         self.configured_deps = {}
+        self.configured_sources = {}
 
-        self.populate_configured_deps()
+        self.populate_configured_deps_and_sources()
         self.index_project()
 
         for n in sys.builtin_module_names:
@@ -187,20 +189,18 @@ class Workspace:
             self.module_paths[os.path.abspath(the_module.path)] = the_module
             self.fetched.add(basename)
 
-    def populate_configured_deps(self):
+    def populate_configured_deps_and_sources(self):
         all_paths = list(self.fs.walk(self.PROJECT_ROOT))
-        print('#ALL PATHS', all_paths)
-        if '/pyconfig.json' in all_paths:
-            print('### PYCONFIG EXISTS')
-            json_data = self.fs.open('/pyconfig.json')
-            print ('### JSON DATA', json_data)
-            parsed_json = json.loads(json_data)
-            print ('### PARSED JSON', parsed_json)
-            packages = parsed_json['packages']
+        if '/Pipfile' in all_paths:
+            json_data = self.fs.open('/Pipfile')
+            parsed_json = ConfigParser(json_data)
+            packages = parsed_json.packages
             for package in packages:
-                name = package['package_name']
-                self.configured_deps[name] = package
-            print('### configured deps', self.configured_deps )
+                self.configured_deps[package] = packages[package]
+
+            sources = parsed_json.sources
+            for source in sources:
+                self.configured_sources[source] = sources[source]
 
     def index_project(self):
         """
@@ -286,7 +286,7 @@ class Workspace:
         if package_name not in self.fetched:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
-            fetch_dependency(package_name, self.PACKAGES_PATH, self.configured_deps)
+            fetch_dependency(package_name, self.PACKAGES_PATH, self.configured_deps, self.configured_sources)
             self.index_external_modules()
             self.indexing_lock.release()
         the_module = self.dependencies.get(qualified_name, None)

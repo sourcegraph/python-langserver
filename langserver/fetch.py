@@ -4,6 +4,7 @@ import os
 import shutil
 import logging
 import six
+from .package_configuation import Source
 try:
     from urllib.parse import urlparse
 except ImportError:
@@ -15,7 +16,7 @@ import pip.status_codes
 log = logging.getLogger(__name__)
 
 
-def fetch_dependency(module_name: str, install_path: str, configured_deps: dict):
+def fetch_dependency(module_name: str, install_path: str, configured_deps: dict, configured_sources: dict):
     """
     Shells out to PIP in order to download and unzip the named package into the specified path. This method only runs
     `pip download`, NOT `pip install`, so it's presumably safe.
@@ -24,19 +25,26 @@ def fetch_dependency(module_name: str, install_path: str, configured_deps: dict)
     """
     with tempfile.TemporaryDirectory() as download_folder:
         log.info("Attempting to download package %s to %s", module_name, download_folder, exc_info=True)
-        index_url = os.environ.get('INDEX_URL')
+        index_url = os.environ.get('INDEX_URL') or 'https://pypi.python.org/simple'
+        source = Source("pypi", "https://pypi.python.org/simple", True)
         # TODO: check the result status
         if module_name in configured_deps:
             dep = configured_deps[module_name]
-            index_url = dep['source']['url'] or os.environ.get('INDEX_URL')
-            args = convert_deps_to_pip(configured_deps[module_name], include_index=True)[0]
-            print('### ARGS', args)
+            print("$$$$$$$$$$$$$$$")
+            print('#### name', dep.name)
+            print('#### version', dep.version)
+            print('#### index name', dep.index_name)
+            print('### URL', configured_sources['name'].url)
+            print("$$$$$$$$$$$$$$$")
+            if dep.index_name in configured_sources:
+                index_url = configured_sources[dep.index_name].url
+                source.name = configured_sources[dep.index_name]
+
+            args = convert_deps_to_pip(configured_deps[module_name], source, include_index=True)[0]
             if index_url is not None:
                 result = pip.main(["download", "--no-deps", "-d", download_folder, args])
-                print('### RESULT', result)
             else:
                 result = pip.main(["download", "--no-deps", "-d", download_folder, args])
-                print('### RESULTELSE', result)
         else:
             if index_url is not None:
                 result = pip.main(["download", "--no-deps", "-i", index_url, "-d", download_folder, module_name])
@@ -63,34 +71,21 @@ def fetch_dependency(module_name: str, install_path: str, configured_deps: dict)
             else:
                 log.warning("Unrecognized package file: %s", thing, exc_info=True)
 
-def prepare_pip_source_args(sources, pip_args=None):
-    print('### PIP ARGS ', pip_args)
-    print('### SOURCES ', sources)
+def prepare_pip_source_args(source, pip_args=None):
     if pip_args is None:
         pip_args = []
 
-    if sources:
+    if source:
         # Add the source to pip.
-        pip_args.extend(['-i', sources[0]['url']])
+        pip_args.extend(['-i', source.url])
 
-        print('###sources get ssl', sources[0].get('verify_ssl', True))
         # Trust the host if it's not verified.
-        if not sources[0].get('verify_ssl', True):
-            pip_args.extend(['--trusted-host', urlparse(sources[0]['url']).netloc.split(':')[0]])
-
-        # Add additional sources as extra indexes.
-        if len(sources) > 1:
-            for source in sources[1:]:
-                pip_args.extend(['--extra-index-url', source['url']])
-
-                # Trust the host if it's not verified.
-                if not source.get('verify_ssl', True):
-                    pip_args.extend(['--trusted-host', urlparse(source['url']).netloc.split(':')[0]])
-    print('### returned pip args', pip_args)
+        if not source.verify_ssl==True:
+            pip_args.extend(['--trusted-host', urlparse(source.url).netloc.split(':')[0]])
     return pip_args
 
 
-def convert_deps_to_pip(dep, include_index=False):
+def convert_deps_to_pip(dep, source, include_index=False):
     """"Converts a Pipfile-formatted dependency to a pip-formatted one."""
     dependencies = []
     # Default (e.g. '>1.10').
@@ -99,49 +94,17 @@ def convert_deps_to_pip(dep, include_index=False):
 
     hash = ''
     # Support for single hash (spec 1).
-    if 'hash' in dep:
-        hash = ' --hash={0}'.format(dep['hash'])
 
-    # Support for multiple hashes (spec 2).
-    if 'hashes' in dep:
-        hash = '{0} '.format(''.join([' --hash={0} '.format(h) for h in dep['hashes']]))
-
-    # Support for extras (e.g. requests[socks])
-    if 'extras' in dep:
-        extra = '[{0}]'.format(dep['extras'][0])
-
-    if 'version' in dep:
-        if not dep['version'] == '*':
-            version = dep['version']
+    if not dep.version == '*':
+        version = dep.version
 
     if include_index:
-        if dep['source']:
-            # get source url
-            pip_args = prepare_pip_source_args([dep['source']])
-            index = ' '.join(pip_args)
+        # get source url
+        pip_args = prepare_pip_source_args(source)
+        index = ' '.join(pip_args)
 
-    # Support for files.
-    if 'file' in dep:
-        extra = '{1}{0}'.format(extra, dep['file']).strip()
-
-        # Flag the file as editable if it is a local relative path
-        if 'editable' in dep:
-            dep = '-e '
-        else:
-            dep = ''
-
-    # Support for paths.
-    elif 'path' in dep:
-        print('## DEP', dep)
-        extra = '{1}{0}'.format(extra, dep['path']).strip()
-
-        # Flag the file as editable if it is a local relative path
-        if 'editable' in dep:
-            dep = '-e '
-        else:
-            dep = ''
-
-    version = '{0}{1}'.format(dep['package_name'], version).strip()
+    version = '{0}{1}'.format(dep.name, version).strip()
+    ### final format is pip download --no-deps 'eventlet==0.16.0' -i https://pypi.com
     dependencies.append(version)
     dependencies.append(index)
     return dependencies
