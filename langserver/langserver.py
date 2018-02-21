@@ -381,7 +381,7 @@ class LangServer:
                                          rel_path),
                     "file": filename
                 }
-
+            
             if d.is_definition(
             ) and d.line is not None and d.column is not None:
                 location = {
@@ -398,14 +398,14 @@ class LangServer:
                         },
                     },
                 }
-            # add a position hint in case this eventually gets passed to an operation that could use it
-            if symbol_locator["symbol"]:
-                symbol_locator["symbol"]["position"] = location["range"][
-                    "start"]
+                # add a position hint in case this eventually gets passed to an operation that could use it
+                if symbol_locator["symbol"]:
+                    symbol_locator["symbol"]["position"] = location["range"][
+                        "start"]
 
-            # set the full location if the definition is in this workspace
-            if not defining_module or not defining_module.is_external:
-                symbol_locator["location"] = location
+                # set the full location if the definition is in this workspace
+                if not defining_module or not defining_module.is_external:
+                    symbol_locator["location"] = location
 
             results.append(symbol_locator)
 
