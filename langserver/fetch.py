@@ -4,7 +4,7 @@ import os
 import shutil
 import logging
 import six
-from .package_configuation import Source
+from .package_configuation import ConfigParser
 try:
     from urllib.parse import urlparse
 except ImportError:
@@ -16,31 +16,28 @@ import pip.status_codes
 log = logging.getLogger(__name__)
 
 
-def fetch_dependency(module_name: str, install_path: str, configured_deps: dict, configured_sources: dict):
+def fetch_dependency(module_name: str, install_path: str, config: ConfigParser):
     """
     Shells out to PIP in order to download and unzip the named package into the specified path. This method only runs
     `pip download`, NOT `pip install`, so it's presumably safe.
     :param module_name: the name of the package to download
     :param install_path: the path in which to install the downloaded package
     """
+    packages = config.packages
+    sources = config.sources
+
     with tempfile.TemporaryDirectory() as download_folder:
         log.info("Attempting to download package %s to %s", module_name, download_folder, exc_info=True)
         index_url = os.environ.get('INDEX_URL') or 'https://pypi.python.org/simple'
-        source = Source("pypi", "https://pypi.python.org/simple", True)
         # TODO: check the result status
-        if module_name in configured_deps:
-            dep = configured_deps[module_name]
-            print("$$$$$$$$$$$$$$$")
-            print('#### name', dep.name)
-            print('#### version', dep.version)
-            print('#### index name', dep.index_name)
-            print('### URL', configured_sources['name'].url)
-            print("$$$$$$$$$$$$$$$")
-            if dep.index_name in configured_sources:
-                index_url = configured_sources[dep.index_name].url
-                source.name = configured_sources[dep.index_name]
+        if module_name in packages:
+            package = packages[module_name]
+            source = config.get_package_source(package)
 
-            args = convert_deps_to_pip(configured_deps[module_name], source, include_index=True)[0]
+            if package.index_name in sources:
+                index_url = sources[dep.index_name].url
+
+            args = convert_deps_to_pip(package, source, include_index=True)[0]
             if index_url is not None:
                 result = pip.main(["download", "--no-deps", "-d", download_folder, args])
             else:

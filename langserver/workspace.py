@@ -95,10 +95,9 @@ class Workspace:
         self.indexing_lock = threading.Lock()
         # keep track of which packages we've tried to fetch, so we don't keep trying if they were unfetchable
         self.fetched = set()
-        self.configured_deps = {}
-        self.configured_sources = {}
+        self.config = {}
 
-        self.populate_configured_deps_and_sources()
+        self.populate_config()
         self.index_project()
 
         for n in sys.builtin_module_names:
@@ -189,18 +188,12 @@ class Workspace:
             self.module_paths[os.path.abspath(the_module.path)] = the_module
             self.fetched.add(basename)
 
-    def populate_configured_deps_and_sources(self):
+    def populate_config(self):
         all_paths = list(self.fs.walk(self.PROJECT_ROOT))
         if '/Pipfile' in all_paths:
             json_data = self.fs.open('/Pipfile')
             parsed_json = ConfigParser(json_data)
-            packages = parsed_json.packages
-            for package in packages:
-                self.configured_deps[package] = packages[package]
-
-            sources = parsed_json.sources
-            for source in sources:
-                self.configured_sources[source] = sources[source]
+            self.config = parsed_json
 
     def index_project(self):
         """
@@ -286,7 +279,7 @@ class Workspace:
         if package_name not in self.fetched:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
-            fetch_dependency(package_name, self.PACKAGES_PATH, self.configured_deps, self.configured_sources)
+            fetch_dependency(package_name, self.PACKAGES_PATH, self.config)
             self.index_external_modules()
             self.indexing_lock.release()
         the_module = self.dependencies.get(qualified_name, None)
