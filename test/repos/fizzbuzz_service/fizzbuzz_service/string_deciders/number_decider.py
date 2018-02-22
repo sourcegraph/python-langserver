@@ -1,6 +1,6 @@
-from checkers.fizz import fizz_checker
-from checkers.buzz import buzz_checker
-from checkers.fizzbuzz import fizzbuzz_checker
+from ..checkers.fizz import fizz_checker
+from ..checkers.buzz import buzz_checker
+from ..checkers.fizzbuzz import fizzbuzz_checker
 
 
 def decide_string_for_number(number):

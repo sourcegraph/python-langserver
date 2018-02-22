@@ -1,4 +1,4 @@
-import string_deciders.number_decider
+import fizzbuzz_service.string_deciders.number_decider
 
 class NumberLooper(object):
     '''Very important class that is capable of gathering all the number strings in [start, end)'''
@@ -13,6 +13,6 @@ class NumberLooper(object):
         '''Returns the number strings in [self.start, self.end)'''
         number_strings = []
         for number in range(self.start, self.end):
-            number_string = string_deciders.number_decider.decide_string_for_number(number)
+            number_string = fizzbuzz_service.string_deciders.number_decider.decide_string_for_number(number)
             number_strings.append(number_string)
         return number_strings
