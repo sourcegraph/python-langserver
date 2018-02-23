@@ -376,3 +376,155 @@ def test_std_lib_definition():
 
     assert definition in result
     assert assignment in result
+
+def test_local_references():
+    uri = 'file:///fizzbuzz_service/string_deciders/number_decision.py'
+    line, col = 5, 13
+    result = fizzbuzz_workspace.references(uri, line, col)
+    
+    references = [
+        {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py', 
+            'range': {
+                'start': {
+                    'line': 6, 
+                    'character': 19
+                },
+                'end': {
+                    'line': 6, 
+                    'character': 33
+                }
+            }
+        },
+        {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py', 
+            'range': {
+                'start': {
+                    'line': 9, 
+                    'character': 19
+                },
+                'end': {
+                    'line': 9, 
+                    'character': 33
+                }
+            }
+        },
+        {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py', 
+            'range': {
+                'start': {
+                    'line': 12, 
+                    'character': 19
+                },
+                'end': {
+                    'line': 12, 
+                    'character': 33
+                }
+            }
+        },
+        {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'range': {
+                'start': {
+                    'line': 15, 
+                    'character': 15
+                },
+                'end': {
+                    'line': 15, 
+                    'character': 29
+                }
+            }
+        },
+        {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'range': {
+                'start': {
+                    'line': 18, 
+                    'character': 15
+                },
+                'end': {
+                    'line': 18, 
+                    'character': 29
+                }
+            }
+        },
+        {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'range': {
+                'start': {
+                    'line': 21, 
+                    'character': 15
+                }, 
+                'end': 
+                {
+                    'line': 21, 
+                    'character': 29
+                }
+            }
+        },
+        {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'range': {
+                'start': {
+                    'line': 23, 
+                    'character': 11
+                },
+                'end': {
+                    'line': 23, 
+                    'character': 25
+                }
+            }
+        },
+    ]
+
+    assert len(references) == len(result)
+    for ref in references:
+        assert ref in result
+
+def test_x_references():
+    result = fizzbuzz_workspace.x_references("enum", "Enum")
+
+    import_ref = {
+        'reference': {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'range': {
+                'start': {
+                    'line': 0, 
+                    'character': 0
+                }, 
+                'end': {
+                    'line': 0, 
+                    'character': 4
+                }
+            }
+        }, 
+        'symbol': {
+            'container': 'enum', 
+            'name': 'Enum'
+        }
+    }
+
+    base_class_ref = {
+        'reference': {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'range': {
+                'start': {
+                    'line': 5, 
+                    'character': 21
+                }, 
+                'end': {
+                    'line': 5, 
+                    'character': 25
+                }
+            }
+        }, 
+        'symbol': {
+            'container': 'enum', 
+            'name': 'Enum'
+        }
+    }
+
+    assert len(result) == 2
+
+    assert import_ref in result
+    assert base_class_ref in result
