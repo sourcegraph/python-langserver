@@ -4,6 +4,7 @@ from ..checkers.buzz import buzz_checker
 from ..checkers.fizzbuzz import fizzbuzz_checker
 
 class OutputDecision(Enum):
+    '''Convenient enum representing a particular output for a number'''
     NUMBER = 1
     FIZZ = 2
     BUZZ = 3

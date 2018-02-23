@@ -86,3 +86,39 @@ def test_std_lib_hover():
             'flush: whether to forcibly flush the stream.'
         ]
     }
+
+def test_local_defintion():
+    uri = "/fizzbuzz_service/string_deciders/number_decision.py"
+    line, col = 21, 21
+    result = fizzbuzz_workspace.definition(uri, line, col)
+    assert result == [
+        {
+            'symbol': {
+                'package': {
+                    'name': 'fizzbuzz_service'
+                }, 
+                'name': 'OutputDecision', 
+                'container': 'fizzbuzz_service.string_deciders.number_decision', 
+                'kind': 'class', 
+                'file': 'number_decision.py', 
+                'position': {
+                    'line': 5, 
+                    'character': 6
+                }
+            }, 
+            'location': {
+                'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+                'range': {
+                    'start': {
+                        'line': 5, 
+                        'character': 6
+                    }, 
+                    'end': {
+                        'line': 5, 
+                        'character': 20
+                    }
+                }
+            }
+        }
+    ]
+
