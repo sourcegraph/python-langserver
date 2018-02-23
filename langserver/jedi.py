@@ -63,11 +63,7 @@ class RemoteJedi:
             """A swap-in replacement for Jedi's find module function that uses the
             remote fs to resolve module imports."""
             if dir is None:
-                # If we're starting the search for a module, then proceed from both the project root as well as the
-                # folder containing the current file. Normally we should only search from the project root (I think),
-                # but certain repos such as collections of example projects are structured such that we can support
-                # them better by searching relative to the current file, too.
-                dir = ["/", os.path.dirname(path)]
+                dir = get_module_search_paths(string, path)
             with opentracing.start_child_span(
                     parent_span,
                     "find_module_remote_callback") as find_module_span:
@@ -140,3 +136,29 @@ class RemoteJedi:
             )
 
         return jedi.api.Script(*args, **kwargs)
+
+def get_module_search_paths(module_name, script_file_path):
+    '''
+    Provides an ordered list of directories in the workspace to search for the 
+    given 'module_name', starting from the directory that the script is operating on. 
+    
+    This mimics Jedi's modifications of sys.path that it uses during module resolution.
+    See: 
+    https://sourcegraph.com/github.com/sourcegraph/jedi/-/blob/jedi/evaluate/imports.py#L237:9
+    '''
+    for parent in traverse_parents(script_file_path):
+        if os.path.basename(parent) == module_name:
+            yield parent
+        
+
+def traverse_parents(path):
+    '''
+    Returns all parent directories for the given file path - Copied from: 
+    https://sourcegraph.com/github.com/sourcegraph/jedi/-/blob/jedi/evaluate/sys_path.py#L228:5
+    '''
+    while True:
+        new = os.path.dirname(path)
+        if new == path:
+            return
+        path = new
+        yield path
