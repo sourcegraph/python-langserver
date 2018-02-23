@@ -380,10 +380,9 @@ class LangServer:
                     "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH,
                                          rel_path),
                     "file": filename
-                }
-            
-            if d.is_definition(
-            ) and d.line is not None and d.column is not None:
+                }    
+                  
+            if d.is_definition() and d.line is not None and d.column is not None:
                 location = {
                     # TODO(renfred) determine why d.module_path is empty.
                     "uri": "file://" + (d.module_path or path),
