@@ -1,17 +1,16 @@
-from ..checkers.fizz import fizz_checker
-from ..checkers.buzz import buzz_checker
-from ..checkers.fizzbuzz import fizzbuzz_checker
+from .number_decision import OutputDecision, decide_output_for_number
 
-
-def decide_string_for_number(number):
+def output_string_for_number(number):
     '''Returns the correct string for the number'''
-    if fizzbuzz_checker.should_fizzbuzz(number):
+    decision = decide_output_for_number(number)
+
+    if decision == OutputDecision.FIZZBUZZ:
         return "FIZZBUZZ"
-    
-    if fizz_checker.should_fizz(number):
+
+    if decision == OutputDecision.FIZZ:
         return "FIZZ"
 
-    if buzz_checker.should_buzz(number):
+    if decision == OutputDecision.BUZZ:
         return "BUZZ"
-
+    
     return str(number)

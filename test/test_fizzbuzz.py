@@ -34,6 +34,21 @@ def test_local_hover():
         ]
     }
 
+def test_local_package_cross_module_hover():
+    uri = "file:///fizzbuzz_service/string_deciders/number_decider.py"
+    line, col = 4, 22
+    result = fizzbuzz_workspace.hover(uri, line, col)
+    
+    assert result == {
+        'contents': [
+            {
+                'language': 'python', 
+                'value': 'def decide_output_for_number(param number)'
+            }, 
+            'Decides the output for a given number'
+        ]
+    }
+    
 def test_cross_package_hover():
     uri = "file:///fizzbuzz_service/checkers/fizzbuzz/fizzbuzz_checker.py"
     line, col = 5, 31
@@ -71,5 +86,3 @@ def test_std_lib_hover():
             'flush: whether to forcibly flush the stream.'
         ]
     }
-
-    
