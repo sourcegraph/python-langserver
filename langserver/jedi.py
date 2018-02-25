@@ -145,6 +145,9 @@ def get_module_search_paths(module_name, script_file_path):
     This mimics Jedi's modifications of sys.path that it uses during module resolution.
     See: 
     https://sourcegraph.com/github.com/sourcegraph/jedi/-/blob/jedi/evaluate/imports.py#L237:9
+
+    Note that this does not handle some corner cases, see: 
+    https://www.python.org/dev/peps/pep-0235/
     '''
     for parent in traverse_parents(script_file_path):
         if os.path.basename(parent) == module_name:
