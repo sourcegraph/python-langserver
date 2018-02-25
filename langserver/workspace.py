@@ -145,6 +145,10 @@ class Workspace:
             qualified_name = breadcrumb
 
         if os.path.isdir(library_path):
+            # don't index third-party packages installed in our python path
+            if library_path == os.path.join(self.PYTHON_PATH, "site-packages"):
+                return
+
             # recursively index this folder
             for child in os.listdir(library_path):
                 self.index_dependencies(index, os.path.join(library_path, child), is_stdlib, qualified_name)
