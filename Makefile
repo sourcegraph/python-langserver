@@ -7,4 +7,4 @@ init:
 
 test:
 	pipenv run pytest test_langserver.py
-	pipenv run cd ./test && pipenv run pytest test_*.py
+	cd ./test && pipenv run pytest test_*.py
