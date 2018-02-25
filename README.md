@@ -1,5 +1,7 @@
 # Python language server
 
+[![Build Status](https://travis-ci.org/sourcegraph/python-langserver.svg?branch=master)](https://travis-ci.org/sourcegraph/python-langserver)
+
 **Note: This language server is currently in the early stages of active development and not all features are yet supported. We encourage desktop users to use https://github.com/palantir/python-language-server instead.**
 
 This is a language server for Python that adheres to the [Language Server Protocol (LSP)](https://github.com/Microsoft/language-server-protocol/blob/master/protocol.md). It uses [Jedi](https://github.com/davidhalter/jedi) to perform source code analysis. Python versions 2.x and 3.x are supported.
