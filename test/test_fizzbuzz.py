@@ -17,7 +17,10 @@ def test_x_packages():
 
     dependencies = {d["attributes"]["name"] for d in package["dependencies"]}
 
-    assert dependencies == {"cpython"}
+    assert dependencies == {
+        "setuptools",
+        "cpython"
+    }
 
 
 def test_local_hover():
