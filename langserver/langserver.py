@@ -222,7 +222,7 @@ class LangServer:
                 defs = []
         elif len(defs) == 0:
             defs = LangServer.goto_assignments(script, request)
-
+            
         # The code from this point onwards is modified from the MIT licensed github.com/DonJayamanne/pythonVSCode
 
         def generate_signature(completion):
