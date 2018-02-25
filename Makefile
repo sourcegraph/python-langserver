@@ -2,7 +2,7 @@
 
 init:
 	pip install pipenv
-    pipenv install --dev
+	pipenv install --dev
 
 test:
 	pipenv run pytest test_langserver.py
