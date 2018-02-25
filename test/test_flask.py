@@ -265,7 +265,7 @@ def test_cross_repo_definition():
                 'kind': 'class',
                 'file': 'datastructures.py',
                 'position': {
-                    'line': 1536,
+                    'line': 1541,
                     'character': 6
                 }
             },
@@ -377,7 +377,7 @@ def test_stdlib_definition():
                 'path': 'Lib/datetime.py',
                 'file': 'datetime.py',
                 'position': {
-                    'line': 318,
+                    'line': 335,
                     'character': 6
                 }
             },
