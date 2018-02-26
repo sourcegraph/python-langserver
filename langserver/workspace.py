@@ -163,7 +163,7 @@ class Workspace:
                                 is_stdlib)
             index[qualified_name] = the_module
             self.module_paths[os.path.abspath(the_module.path)] = the_module
-            self.fetched.add(module_name)
+    
         elif extension == ".py":
             # just a regular non-package module
             the_module = Module(basename,
@@ -174,7 +174,7 @@ class Workspace:
                                 is_stdlib)
             index[qualified_name] = the_module
             self.module_paths[os.path.abspath(the_module.path)] = the_module
-            self.fetched.add(basename)
+            
         elif extension == ".so":
             # native module -- mark it as such and report a warning or something
             the_module = Module(basename,
@@ -186,7 +186,7 @@ class Workspace:
                                 True)
             index[qualified_name] = the_module
             self.module_paths[os.path.abspath(the_module.path)] = the_module
-            self.fetched.add(basename)
+            
 
     def index_project(self):
         """
