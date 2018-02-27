@@ -2,6 +2,7 @@ from .config import GlobalConfig
 from .fs import FileSystem, LocalFileSystem, FileException
 from .imports import get_imports
 from .fetch import fetch_dependency, parse_requirements, get_specifier_for_requirement
+from .requirements import Requirements
 from typing import Dict, Set, List
 
 import logging
@@ -76,14 +77,17 @@ class Workspace:
         if self.hash:
             self.key = ".".join((self.key, self.hash))
 
-        self.PYTHON_PATH = GlobalConfig.PYTHON_PATH  # TODO: allow different Python versions per project/workspace
-        self.PACKAGES_PATH = os.path.join(GlobalConfig.PACKAGES_PARENT, self.key)
+        # TODO: allow different Python versions per project/workspace
+        self.PYTHON_PATH = GlobalConfig.PYTHON_PATH
+        self.PACKAGES_PATH = os.path.join(
+            GlobalConfig.PACKAGES_PARENT, self.key)
         log.debug("Setting Python path to %s", self.PYTHON_PATH)
         log.debug("Setting package path to %s", self.PACKAGES_PATH)
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
-        self.source_paths = {path for path in self.fs.walk(self.PROJECT_ROOT) if path.endswith(".py")}
+        self.source_paths = {path for path in self.fs.walk(
+            self.PROJECT_ROOT) if path.endswith(".py")}
         self.project = {}
         self.stdlib = {}
         self.dependencies = {}
@@ -93,17 +97,20 @@ class Workspace:
         self.indexing_lock = threading.Lock()
         # keep track of which packages we've tried to fetch, so we don't keep trying if they were unfetchable
         self.fetched = set()
-
+        self.requirements = Requirements(self.fs, "requirements.txt")
         self.index_project()
 
         for n in sys.builtin_module_names:
-            self.stdlib[n] = "native"  # TODO: figure out how to provide code intelligence for compiled-in modules
+            # TODO: figure out how to provide code intelligence for compiled-in modules
+            self.stdlib[n] = "native"
         if "nt" not in self.stdlib:
-            self.stdlib["nt"] = "native"  # this is missing on non-Windows systems; add it so we don't try to fetch it
+            # this is missing on non-Windows systems; add it so we don't try to fetch it
+            self.stdlib["nt"] = "native"
 
         if os.path.exists(self.PYTHON_PATH):
             log.debug("Indexing standard library at %s", self.PYTHON_PATH)
-            self.index_dependencies(self.stdlib, self.PYTHON_PATH, is_stdlib=True)
+            self.index_dependencies(
+                self.stdlib, self.PYTHON_PATH, is_stdlib=True)
         else:
             log.warning("Standard library not found at %s", self.PYTHON_PATH)
 
@@ -137,10 +144,12 @@ class Workspace:
         parent, this = os.path.split(library_path)
         basename, extension = os.path.splitext(this)
         if Workspace.is_package(library_path) or extension == ".py" and this != "__init__.py":
-            qualified_name = ".".join((breadcrumb, basename)) if breadcrumb else basename
+            qualified_name = ".".join(
+                (breadcrumb, basename)) if breadcrumb else basename
         elif extension == ".so":
             basename = basename.split(".")[0]
-            qualified_name = ".".join((breadcrumb, basename)) if breadcrumb else basename
+            qualified_name = ".".join(
+                (breadcrumb, basename)) if breadcrumb else basename
         else:
             qualified_name = breadcrumb
 
@@ -151,7 +160,8 @@ class Workspace:
 
             # recursively index this folder
             for child in os.listdir(library_path):
-                self.index_dependencies(index, os.path.join(library_path, child), is_stdlib, qualified_name)
+                self.index_dependencies(index, os.path.join(
+                    library_path, child), is_stdlib, qualified_name)
         elif this == "__init__.py":
             # we're already inside a package
             module_name = os.path.basename(parent)
@@ -163,7 +173,7 @@ class Workspace:
                                 is_stdlib)
             index[qualified_name] = the_module
             self.module_paths[os.path.abspath(the_module.path)] = the_module
-    
+
         elif extension == ".py":
             # just a regular non-package module
             the_module = Module(basename,
@@ -174,7 +184,7 @@ class Workspace:
                                 is_stdlib)
             index[qualified_name] = the_module
             self.module_paths[os.path.abspath(the_module.path)] = the_module
-            
+
         elif extension == ".so":
             # native module -- mark it as such and report a warning or something
             the_module = Module(basename,
@@ -186,7 +196,6 @@ class Workspace:
                                 True)
             index[qualified_name] = the_module
             self.module_paths[os.path.abspath(the_module.path)] = the_module
-            
 
     def index_project(self):
         """
@@ -272,7 +281,8 @@ class Workspace:
         if package_name not in self.fetched:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
-            specifier = self.get_ext_pkg_specifier(package_name)
+            specifier = self.requirements.get_specifier_for_requirement(
+                package_name)
             fetch_dependency(package_name, specifier, self.PACKAGES_PATH)
             self.index_external_modules()
             self.indexing_lock.release()
@@ -282,7 +292,11 @@ class Workspace:
         else:
             return the_module
 
-    def get_ext_pkg_specifier(self, package_name):
+    def get_external_pkg_specifier(self, package_name):
+        """
+        This method gets the specifier (version number) of package_name.
+        We only get a specifier for the requirement if a requirements.txt file exists at the root of the project.
+        """
         req_map = {}
         try:
             req_map = parse_requirements("requirements.txt", self.fs)
@@ -290,11 +304,12 @@ class Workspace:
             pass
 
         return get_specifier_for_requirement(package_name, req_map)
-        
+
     def index_external_modules(self):
         for path in os.listdir(self.PACKAGES_PATH):
             if path not in self.indexed_folders:
-                self.index_dependencies(self.dependencies, os.path.join(self.PACKAGES_PATH, path))
+                self.index_dependencies(
+                    self.dependencies, os.path.join(self.PACKAGES_PATH, path))
                 self.indexed_folders.add(path)
 
     def open_module_file(self, the_module: Module, parent_span: opentracing.Span):
@@ -316,7 +331,8 @@ class Workspace:
 
     def get_dependencies(self, parent_span: opentracing.Span) -> list:
         top_level_stdlib = {p.split(".")[0] for p in self.stdlib}
-        top_level_imports = get_imports(self.fs, self.PROJECT_ROOT, parent_span)
+        top_level_imports = get_imports(
+            self.fs, self.PROJECT_ROOT, parent_span)
         stdlib_imports = top_level_imports & top_level_stdlib
         external_imports = top_level_imports - top_level_stdlib - self.project_packages
         dependencies = [{"attributes": {"name": n}} for n in external_imports]
