@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "c4191d327cbec105773bdd074f38f2dbd794353924816fdefe6b1e548e3c0c0e"
+            "sha256": "2a033852a3ced1f2434336a05e669e7f0060a5910c77b3c0510e22082dcc72c5"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -71,6 +71,16 @@
                 "sha256:95b78959572de7d7fafa3acb718ed71f482932ddddddbd29ba8319c10639d863"
             ],
             "version": "==3.5.1"
+        },
+        "requirements": {
+            "editable": true,
+            "git": "git://github.com/sourcegraph/requirements-parser.git",
+            "ref": "69f1a9cb916b2995843c3ea9b988da46c9dd65c7"
+        },
+        "requirements-parser": {
+            "editable": true,
+            "git": "git://github.com/sourcegraph/requirements-parser.git",
+            "ref": "69f1a9cb916b2995843c3ea9b988da46c9dd65c7"
         },
         "six": {
             "hashes": [
