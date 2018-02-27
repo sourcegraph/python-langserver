@@ -10,15 +10,8 @@ def workspace():
     yield workspace
     workspace.exit()
 
-
-"""
-This test should pass as long as we do not fetch results from the correct version of dependencies .
-Once we *do*, this test should be updated so the hover returns 'this is version 0.1'.
-"""
-
-
 class TestDependencyVersioning:
-    def test_dep_version(self, workspace):
+    def test_dep_download_older_version(self, workspace):
         uri = "file:///test.py"
         character, line = 6, 2
         result = workspace.hover(uri, line, character)

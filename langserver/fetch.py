@@ -7,8 +7,6 @@ import logging
 import pip
 import pip.status_codes
 
-from requirements import parse
-
 log = logging.getLogger(__name__)
 
 
@@ -49,34 +47,3 @@ def fetch_dependency(module_name: str, specifier: str, install_path: str):
             else:
                 log.warning("Unrecognized package file: %s", thing, exc_info=True)
 
-def parse_requirements(req_path, file_system):
-    """
-    Parses the pip requirements file located at req_path. Returns a map of package names 
-    to their version specifiers. 
-
-    :param req_path: the path to the pip requirements file. Throws a FileNotFound or a FileException if
-    req_file is not valid
-
-    :param file_system: the file system to use to open the requirements file @ req_path and any other
-    recursive calls. 
-
-    Known limitations:
-
-    - All requirements files with that use the '--find-links', '--index-url', '--extra-index-url'
-    or '--no-index' flags are ignored. 
-
-    - All requirements that don't use a requirements specifier (e.x. django>=1.5 ) are ignored. 
-    """
-    req_string = file_system.open(req_path)
-    requirements = parse(req_string, current_path = req_path, file_system = file_system)
-    return { req.name:req.specs for req in requirements if req.specifier}
-
-def get_specifier_for_requirement(requirement, requirements_map):
-    """
-    Returns the specifier string to use for a given requirement. 
-    """
-    specifier_strs = []
-    for spec in requirements_map.get(requirement, [""]):
-        specifier_strs.append("".join(spec))
-    
-    return ",".join(specifier_strs)
