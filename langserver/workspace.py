@@ -1,7 +1,7 @@
 from .config import GlobalConfig
-from .fs import FileSystem, LocalFileSystem
+from .fs import FileSystem, LocalFileSystem, FileException
 from .imports import get_imports
-from .fetch import fetch_dependency
+from .fetch import fetch_dependency, parse_requirements, get_specifier_for_requirement
 from typing import Dict, Set, List
 
 import logging
@@ -272,7 +272,8 @@ class Workspace:
         if package_name not in self.fetched:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
-            fetch_dependency(package_name, self.PACKAGES_PATH)
+            specifier = self.get_ext_pkg_specifier(package_name)
+            fetch_dependency(package_name, specifier, self.PACKAGES_PATH)
             self.index_external_modules()
             self.indexing_lock.release()
         the_module = self.dependencies.get(qualified_name, None)
@@ -281,6 +282,15 @@ class Workspace:
         else:
             return the_module
 
+    def get_ext_pkg_specifier(self, package_name):
+        req_map = {}
+        try:
+            req_map = parse_requirements("requirements.txt", self.fs)
+        except (FileException, FileNotFoundError):
+            pass
+
+        return get_specifier_for_requirement(package_name, req_map)
+        
     def index_external_modules(self):
         for path in os.listdir(self.PACKAGES_PATH):
             if path not in self.indexed_folders:

@@ -28,6 +28,6 @@ class TestDependencyVersioning:
                     'language': 'python',
                     'value': 'def testfunc()'
                 },
-                'this is version 0.2'
+                'this is version 0.1'
             ]
         }
