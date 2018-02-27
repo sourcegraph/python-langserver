@@ -1,0 +1,22 @@
+{
+    "packages": [
+      {
+        "package_name": "django",
+        "version": ">0.5.0",
+        "source" : {
+          "name": "pypi",
+          "verify_ssl": "True",
+          "url": "https://pypi.python.org/simple"
+        }
+      },
+      {
+        "package_name": "eventlet",
+        "version": ">=0.16.1,<0.19.0",
+        "source" : {
+          "name": "pypi",
+          "verify_ssl": "True",
+          "url": "https://pypi.python.org/simple"
+        }
+      }
+    ]
+}
