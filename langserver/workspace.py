@@ -84,7 +84,16 @@ class Workspace:
 
         self.fs = fs
         self.local_fs = LocalFileSystem()
-        self.source_paths = {path for path in self.fs.walk(self.PROJECT_ROOT) if path.endswith(".py")}
+        self.source_paths = set()
+        # keeps track of all the locations for the requirements files in the project
+        self.requirements_files = set()
+
+        for path in self.fs.walk(self.PROJECT_ROOT):
+            if path.endswith(".py"):
+                self.source_paths.add(path)
+            elif os.path.basename(path) == "requirements.txt":
+                self.requirements_files.add(path)
+
         self.project = {}
         self.stdlib = {}
         self.dependencies = {}
