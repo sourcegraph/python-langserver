@@ -51,6 +51,7 @@ class Module:
     def __repr__(self):
         return "PythonModule({}, {})".format(self.name, self.path)
 
+REQUIREMENTS_FILE_NAME = "requirements.txt"
 
 class Workspace:
 
@@ -91,7 +92,7 @@ class Workspace:
         for path in self.fs.walk(self.PROJECT_ROOT):
             if path.endswith(".py"):
                 self.source_paths.add(path)
-            elif os.path.basename(path) == "requirements.txt":
+            elif os.path.basename(path) == REQUIREMENTS_FILE_NAME:
                 self.requirements_files.add(path)
 
         self.project = {}
@@ -299,16 +300,12 @@ class Workspace:
         (See limitations and caveats in .requirements_parser.parse_requirements()
         and .requirements_parser.get_version_specifier_for_pkg()).
 
-        If a requirements file isn't found at the root of the repo, or if there was an error parsing it,
-        a string representing that any version is allowed is returned. 
+        If a requirements file isn't found at the root of the repo, a 
+        string representing that any version is allowed is returned. 
         """
         pkg_specifiers_map = {}
-        try:
-            pkg_specifiers_map = parse_requirements("requirements.txt", self.fs)
-        except (FileException, FileNotFoundError) as e:
-            log.warning("error parsing requirements file for {}, err: {}".format(self.PROJECT_ROOT, e))
-            pass
-
+        if os.path.join("/", REQUIREMENTS_FILE_NAME) in self.requirements_files:
+            pkg_specifiers_map = parse_requirements(REQUIREMENTS_FILE_NAME, self.fs)
         return get_version_specifier_for_pkg(package_name, pkg_specifiers_map)
         
     def index_external_modules(self):
