@@ -3,22 +3,28 @@ import uuid
 import pytest
 
 
-@pytest.fixture()
-def workspace():
-    workspace = Harness("repos/dep_versioning")
-    workspace.initialize("repos/dep_versioning?" + str(uuid.uuid4()))
-    yield workspace
+@pytest.fixture(params=[
+    # tuples of the repo for the test, along
+    # with the expected doc_string for the hover
+    # in that repo
+    ("repos/dep_versioning_fixed", "this is version 0.1"),
+    ("repos/dep_versioning_between", "this is version 0.4"),
+    ("repos/dep_versioning_between_multiple", "this is version 0.4"),
+    ("repos/dep_versioning_none", "this is version 0.6")
+])
+def test_data(request):
+    repo_path, expected_doc_string = request.param
+
+    workspace = Harness(repo_path)
+    workspace.initialize(repo_path + str(uuid.uuid4()))
+    yield (workspace, expected_doc_string)
+
     workspace.exit()
 
 
-"""
-This test should pass as long as we do not fetch results from the correct version of dependencies .
-Once we *do*, this test should be updated so the hover returns 'this is version 0.1'.
-"""
-
-
 class TestDependencyVersioning:
-    def test_dep_version(self, workspace):
+    def test_dep_download_specified_version(self, test_data):
+        workspace, expected_doc_string = test_data
         uri = "file:///test.py"
         character, line = 6, 2
         result = workspace.hover(uri, line, character)
@@ -28,6 +34,6 @@ class TestDependencyVersioning:
                     'language': 'python',
                     'value': 'def testfunc()'
                 },
-                'this is version 0.2'
+                expected_doc_string
             ]
         }

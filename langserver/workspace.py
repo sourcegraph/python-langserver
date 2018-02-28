@@ -1,7 +1,8 @@
 from .config import GlobalConfig
-from .fs import FileSystem, LocalFileSystem
+from .fs import FileSystem, LocalFileSystem, FileException
 from .imports import get_imports
 from .fetch import fetch_dependency
+from .requirements_parser import parse_requirements, get_version_specifier_for_pkg
 from typing import Dict, Set, List
 
 import logging
@@ -272,7 +273,8 @@ class Workspace:
         if package_name not in self.fetched:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
-            fetch_dependency(package_name, self.PACKAGES_PATH)
+            specifier = self.get_ext_pkg_version_specifier(package_name)
+            fetch_dependency(package_name, specifier, self.PACKAGES_PATH)
             self.index_external_modules()
             self.indexing_lock.release()
         the_module = self.dependencies.get(qualified_name, None)
@@ -281,6 +283,25 @@ class Workspace:
         else:
             return the_module
 
+    def get_ext_pkg_version_specifier(self, package_name):
+        """
+        Gets the version specifier to use after parsing the project's requirements file.
+        
+        (See limitations and caveats in .requirements_parser.parse_requirements()
+        and .requirements_parser.get_version_specifier_for_pkg()).
+
+        If a requirements file isn't found at the root of the repo, or if there was an error parsing it,
+        a string representing that any version is allowed is returned. 
+        """
+        pkg_specifiers_map = {}
+        try:
+            pkg_specifiers_map = parse_requirements("requirements.txt", self.fs)
+        except (FileException, FileNotFoundError) as e:
+            log.warning("error parsing requirements file for {}, err: {}".format(self.PROJECT_ROOT, e))
+            pass
+
+        return get_version_specifier_for_pkg(package_name, pkg_specifiers_map)
+        
     def index_external_modules(self):
         for path in os.listdir(self.PACKAGES_PATH):
             if path not in self.indexed_folders:
