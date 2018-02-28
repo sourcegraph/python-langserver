@@ -3,13 +3,14 @@ import uuid
 import pytest
 
 
-@pytest.fixture(params = [
+@pytest.fixture(params=[
     # tuples of the repo for the test, along
     # with the expected doc_string for the hover
     # in that repo
     ("repos/dep_versioning_fixed", "this is version 0.1"),
     ("repos/dep_versioning_between", "this is version 0.4"),
-    ("repos/dep_versioning_between_multiple", "this is version 0.4")
+    ("repos/dep_versioning_between_multiple", "this is version 0.4"),
+    ("repos/dep_versioning_none", "this is version 0.6")
 ])
 def test_data(request):
     repo_path, expected_doc_string = request.param
@@ -19,6 +20,7 @@ def test_data(request):
     yield (workspace, expected_doc_string)
 
     workspace.exit()
+
 
 class TestDependencyVersioning:
     def test_dep_download_specified_version(self, test_data):
