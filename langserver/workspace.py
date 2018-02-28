@@ -357,7 +357,7 @@ class Workspace:
             elif self.folder_exists(os.path.join(parent, name)):
                 # there's a folder at this level that implements a namespace package with the name we're looking for
                 module_paths.append(os.path.join(parent, name))
-            elif os.path.basename(parent) == name:
+            elif self.folder_exists(parent) and os.path.basename(parent) == name:
                 # we're already in a namespace package with the name we're looking for
                 module_paths.append(parent)
         if not module_paths:
