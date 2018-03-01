@@ -11,6 +11,7 @@ jedi = {git = "git://github.com/sourcegraph/jedi.git", editable = true, ref = "9
 requirements = {git = "git://github.com/sourcegraph/requirements-parser.git", editable = true, ref = "69f1a9cb916b2995843c3ea9b988da46c9dd65c7"}
 opentracing = "*"
 lightstep = "*"
+"delegator.py" = "*"
 
 
 [dev-packages]

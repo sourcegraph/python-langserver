@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "d1f97bcc1910b5a1f37dfe415f819ab2762d99a804119cbe1ab9480bac33e8ab"
+            "sha256": "a87c841063a059630cc78a587661ae1d78009bfff052cfb964b88571f2f75be1"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -35,6 +35,13 @@
             ],
             "version": "==2.2.1"
         },
+        "delegator.py": {
+            "hashes": [
+                "sha256:58f3ea6fe36680e1d828e2e66e52844b826f186409dfee4436e42351b0e699fe",
+                "sha256:2d46966a7f484d271b09e2646eae1e9acadc4fdf2cb760c142f073e81c927d8d"
+            ],
+            "version": "==0.1.0"
+        },
         "jedi": {
             "editable": true,
             "git": "git://github.com/sourcegraph/jedi.git",
@@ -59,6 +66,13 @@
             ],
             "version": "==1.3.0"
         },
+        "pexpect": {
+            "hashes": [
+                "sha256:6ff881b07aff0cb8ec02055670443f784434395f90c3285d2ae470f921ade52a",
+                "sha256:67b85a1565968e3d5b5e7c9283caddc90c3947a2625bed1905be27bd5a03e47d"
+            ],
+            "version": "==4.4.0"
+        },
         "protobuf": {
             "hashes": [
                 "sha256:11788df3e176f44e0375fe6361342d7258a457b346504ea259a21b77ffc18a90",
@@ -71,6 +85,13 @@
                 "sha256:95b78959572de7d7fafa3acb718ed71f482932ddddddbd29ba8319c10639d863"
             ],
             "version": "==3.5.1"
+        },
+        "ptyprocess": {
+            "hashes": [
+                "sha256:e8c43b5eee76b2083a9badde89fd1bbce6c8942d1045146e100b7b5e014f4f1a",
+                "sha256:e64193f0047ad603b71f202332ab5527c5e52aa7c8b609704fc28c0dc20c4365"
+            ],
+            "version": "==0.5.2"
         },
         "requirements": {
             "editable": true,
