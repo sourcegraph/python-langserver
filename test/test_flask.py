@@ -4,7 +4,7 @@ import uuid
 
 flask_workspace = Harness("repos/flask")
 flask_workspace.initialize(
-    "git://github.com/pallets/flask?" + str(uuid.uuid4()))
+    "git://github.com/sourcegraph/flask?" + str(uuid.uuid4()))
 
 
 def test_x_packages():
