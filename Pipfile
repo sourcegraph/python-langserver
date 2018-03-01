@@ -18,6 +18,7 @@ lightstep = "*"
 py = "==1.4.34"
 pytest = "==3.2.3"
 "autopep8" = "*"
+"flake8" = "*"
 
 
 [requires]
