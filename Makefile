@@ -5,7 +5,7 @@ init:
 	pipenv install --dev
 
 lint:
-	flake8
+	pipenv run flake8
 
 test:
 	pipenv run pytest test_langserver.py

@@ -2,12 +2,14 @@ from .harness import Harness
 import uuid
 import pytest
 
+
 @pytest.fixture()
 def workspace():
     workspace = Harness("repos/dep_pkg_module_same_name")
     workspace.initialize("repos/dep_pkg_module_same_name" + str(uuid.uuid4()))
     yield workspace
     workspace.exit()
+
 
 class TestExtPkgHasModuleWithSameName:
     def test_hover_pkg_module_same_name(self, workspace):
@@ -17,9 +19,9 @@ class TestExtPkgHasModuleWithSameName:
         assert result == {
             'contents': [
                 {
-                    'language': 'python', 
+                    'language': 'python',
                     'value': 'def testfunc()'
-                }, 
+                },
                 'this is version 0.6'
             ]
         }

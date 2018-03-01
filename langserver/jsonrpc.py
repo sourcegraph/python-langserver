@@ -1,10 +1,7 @@
-import base64
 import json
 import logging
 import queue
-import random
 import threading
-import uuid
 from collections import deque
 
 log = logging.getLogger(__name__)
@@ -66,7 +63,8 @@ class JSONRPC2Connection:
         if line == "":
             raise EOFError()
         length = self._read_header_content_length(line)
-        # Keep reading headers until we find the sentinel line for the JSON request.
+        # Keep reading headers until we find the sentinel line for the JSON
+        # request.
         while line != "\r\n":
             line = self.conn.readline()
         body = self.conn.read(length)
@@ -74,8 +72,10 @@ class JSONRPC2Connection:
         return json.loads(body)
 
     def read_message(self, want=None):
-        """Read a JSON RPC message sent over the current connection. If
-        id is None, the next available message is returned."""
+        """Read a JSON RPC message sent over the current connection.
+
+        If id is None, the next available message is returned.
+        """
         if want is None:
             if self._msg_buffer:
                 return self._msg_buffer.popleft()
@@ -149,9 +149,10 @@ class JSONRPC2Connection:
     def send_request_batch(self, requests):
         """Pipelines requests and returns responses.
 
-        The responses is a generator where the nth response corresponds with the
-        nth request. Users must read the generator until the end, otherwise you
-        will leak a thread."""
+        The responses is a generator where the nth response corresponds
+        with the nth request. Users must read the generator until the
+        end, otherwise you will leak a thread.
+        """
 
         # We communicate the request ids using a thread safe queue.
         # It also allows us to bound the number of concurrent requests.

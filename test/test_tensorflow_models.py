@@ -1,13 +1,15 @@
-from .harness import Harness, print_result
+from .harness import Harness
 import uuid
 
 
 tensorflow_models_workspace = Harness("repos/tensorflow-models")
-tensorflow_models_workspace.initialize("git://github.com/tensorflow/models?" + str(uuid.uuid4()))
+tensorflow_models_workspace.initialize(
+    "git://github.com/tensorflow/models?" + str(uuid.uuid4()))
 
 
 def test_namespace_package_definition():
-    result = tensorflow_models_workspace.definition("/inception/inception/flowers_eval.py", 23, 22)
+    result = tensorflow_models_workspace.definition(
+        "/inception/inception/flowers_eval.py", 23, 22)
     symbol = {
         'symbol': {
             'package': {
@@ -40,7 +42,8 @@ def test_namespace_package_definition():
 
 
 def test_ad_hoc_module_definition():
-    result = tensorflow_models_workspace.definition("/skip_thoughts/skip_thoughts/evaluate.py", 43, 26)
+    result = tensorflow_models_workspace.definition(
+        "/skip_thoughts/skip_thoughts/evaluate.py", 43, 26)
     symbol = {
         'symbol': {
             'package': {

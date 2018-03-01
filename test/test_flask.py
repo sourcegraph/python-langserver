@@ -1,9 +1,10 @@
-from .harness import Harness, print_result
+from .harness import Harness
 import uuid
 
 
 flask_workspace = Harness("repos/flask")
-flask_workspace.initialize("git://github.com/pallets/flask?" + str(uuid.uuid4()))
+flask_workspace.initialize(
+    "git://github.com/pallets/flask?" + str(uuid.uuid4()))
 
 
 def test_x_packages():
@@ -71,12 +72,13 @@ def test_cross_package_hover():
     assert "contents" in result
     assert result["contents"]
     assert result["contents"][0] == {
-                'language': 'python',
-                'value': 'def jsonify(param *args, param **kwargs)'
-            }
+        'language': 'python',
+        'value': 'def jsonify(param *args, param **kwargs)'
+    }
 
 
-# TODO(aaron): the actual definition results have duplicates for some reason ... maybe the TestFileSystem?
+# TODO(aaron): the actual definition results have duplicates for some
+# reason ... maybe the TestFileSystem?
 def test_local_definition():
     result = flask_workspace.definition("/flask/cli.py", 215, 15)
     symbol = {
@@ -253,7 +255,8 @@ def test_cross_repo_hover():
 
 def test_cross_repo_definition():
     result = flask_workspace.definition("/flask/app.py", 295, 20)
-    # TODO(aaron): should we return a symbol descriptor with the local result? Might screw up xrefs
+    # TODO(aaron): should we return a symbol descriptor with the local result?
+    # Might screw up xrefs
     assert result == [
         {
             'symbol': {
@@ -346,8 +349,7 @@ def test_stdlib_hover():
         'contents': [
             {
                 'language': 'python',
-                'value': 'class timedelta(param type(self))'
-            },
+                'value': 'class timedelta(param type(self))'},
             'Represent the difference between two datetime objects.\n\n'
             'Supported operators:\n\n'
             '- add, subtract timedelta\n'
@@ -358,9 +360,7 @@ def test_stdlib_hover():
             'returning a timedelta, and addition or subtraction of a datetime\n'
             'and a timedelta giving a datetime.\n\n'
             'Representation: (days, seconds, microseconds).  Why?  Because I\n'
-            'felt like it.'
-        ]
-    }
+            'felt like it.']}
 
 
 def test_stdlib_definition():
@@ -642,7 +642,8 @@ def test_local_references():
 
 
 def test_x_references():
-    result = flask_workspace.x_references("werkzeug.datastructures", "ImmutableDict")
+    result = flask_workspace.x_references(
+        "werkzeug.datastructures", "ImmutableDict")
     assert result == [
         {
             'reference': {
