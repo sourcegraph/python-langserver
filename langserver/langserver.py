@@ -47,7 +47,8 @@ class LangServer:
                 log.error("Unexpected error: %s", e, exc_info=True)
 
     def handle(self, request):
-        if "meta" in request and type(request["meta"]) == dict and len(request["meta"]) > 0:
+        if "meta" in request and isinstance(
+                request["meta"], dict) and len(request["meta"]) > 0:
             span_context = opentracing.tracer.extract(
                 opentracing.Format.TEXT_MAP, request["meta"])
         else:
@@ -62,7 +63,9 @@ class LangServer:
     def route_and_respond(self, request):
         log.info("REQUEST %s %s", request.get("id"), request.get("method"))
 
-        noop = lambda *a: None
+        def noop(*args):
+            return None
+
         handler = {
             "initialize": self.serve_initialize,
             "textDocument/hover": self.serve_hover,
@@ -105,7 +108,7 @@ class LangServer:
             log.warning("error handling request %s", request, exc_info=True)
         else:
             with opentracing.start_child_span(
-                    request["span"], "send_response") as write_response_span:
+                    request["span"], "send_response"):
                 self.conn.write_response(request["id"], resp)
 
     def new_script(self, *args, **kwargs):
@@ -117,11 +120,11 @@ class LangServer:
         parent_span = request["span"]
         try:
             with opentracing.start_child_span(
-                    parent_span, "Script.goto_assignments") as assn_span:
+                    parent_span, "Script.goto_assignments"):
                 return script.goto_assignments()
         except Exception as e:
-            # TODO return these errors using JSONRPC properly. Doing it this way
-            # initially for debugging purposes.
+            # TODO return these errors using JSONRPC properly. Doing it
+            # this way initially for debugging purposes.
             log.error("Failed goto_assignments for %s", request, exc_info=True)
             parent_span.log_kv(
                 {"error", "Failed goto_assignments for %s" % request})
@@ -132,11 +135,11 @@ class LangServer:
         parent_span = request["span"]
         try:
             with opentracing.start_child_span(
-                    parent_span, "Script.goto_definitions") as def_span:
+                    parent_span, "Script.goto_definitions"):
                 return script.goto_definitions()
         except Exception as e:
-            # TODO return these errors using JSONRPC properly. Doing it this way
-            # initially for debugging purposes.
+            # TODO return these errors using JSONRPC properly. Doing it
+            # this way initially for debugging purposes.
             log.error("Failed goto_definitions for %s", request, exc_info=True)
             parent_span.log_kv(
                 {"error", "Failed goto_definitions for %s" % request})
@@ -145,7 +148,7 @@ class LangServer:
     @staticmethod
     def usages(script, parent_span):
         with opentracing.start_child_span(parent_span,
-                                          "Script.usages") as usages_span:
+                                          "Script.usages"):
             return script.usages()
 
     def serve_initialize(self, request):
@@ -176,7 +179,8 @@ class LangServer:
             }
         }
 
-    # TODO(aaron): find a better way to create a langserver/workspace that uses a TestFileSystem
+    # TODO(aaron): find a better way to create a langserver/workspace that
+    # uses a TestFileSystem
     def test_initialize(self, request, fs):
         params = request["params"]
         self.root_path = path_from_uri(params["rootPath"])
@@ -212,18 +216,23 @@ class LangServer:
             column=pos["character"],
             parent_span=parent_span)
 
-        # get the Jedi Definition instances from which to extract the hover information. We filter out string literal Definitions
-        # (they are useless and distracting), which have exactly one Definition named 'str', while preserving Definitions
-        # for variables with inferred 'str' types and references to the builtin `str` function.
+        # get the Jedi Definition instances from which to extract the hover
+        # information. We filter out string literal Definitions
+        # (they are useless and distracting), which have exactly one
+        # Definition named 'str', while preserving Definitions
+        # for variables with inferred 'str' types and references to the builtin
+        # `str` function.
         defs = LangServer.goto_definitions(script, request)
-        if len(defs) == 1 and defs[0].full_name == 'str' and defs[0].in_builtin_module() and defs[0].type == 'instance':
+        if (len(defs) == 1 and defs[0].full_name == 'str' and
+                defs[0].in_builtin_module() and defs[0].type == 'instance'):
             if len(LangServer.goto_assignments(script, request)) == 0:
                 # omit string literal Definitions
                 defs = []
         elif len(defs) == 0:
             defs = LangServer.goto_assignments(script, request)
-            
-        # The code from this point onwards is modified from the MIT licensed github.com/DonJayamanne/pythonVSCode
+
+        # The code from this point onwards is modified from the MIT licensed
+        # github.com/DonJayamanne/pythonVSCode
 
         def generate_signature(completion):
             if completion.type in ['module'
@@ -234,7 +243,7 @@ class LangServer:
                                          for p in completion.params if p))
 
         def get_definition_type(definition):
-            is_built_in = definition.in_builtin_module
+            definition.in_builtin_module
             try:
                 if definition.type in ['statement'
                                        ] and definition.name.isupper():
@@ -251,7 +260,7 @@ class LangServer:
 
         results = []
         with opentracing.start_child_span(
-                parent_span, "accumulate_definitions") as accum_defs_span:
+                parent_span, "accumulate_definitions"):
             for definition in defs:
                 signature = definition.name
                 description = None
@@ -282,10 +291,12 @@ class LangServer:
                 elif def_type == 'class':
                     signature = 'class ' + signature
                 else:
-                    # TODO(keegan) vscode python uses the current word if definition.name is empty
+                    # TODO(keegan) vscode python uses the current word if
+                    # definition.name is empty
                     signature = definition.name
 
-                # TODO(keegan) implement the rest of https://sourcegraph.com/github.com/DonJayamanne/pythonVSCode/-/blob/src/client/providers/hoverProvider.ts#L34
+                # TODO(keegan) implement the rest of
+                # https://sourcegraph.com/github.com/DonJayamanne/pythonVSCode/-/blob/src/client/providers/hoverProvider.ts#L34
                 results.append({
                     "language": "python",
                     "value": signature,
@@ -343,8 +354,10 @@ class LangServer:
             symbol_locator = {"symbol": None, "location": None}
 
             if defining_module and not defining_module.is_stdlib:
-                # the module path doesn't map onto the repository structure because we're not fully installing
-                # dependency packages, so don't include it in the symbol descriptor
+                # the module path doesn't map onto the repository structure
+                # because we're not fully installing
+                # dependency packages, so don't include it in the symbol
+                # descriptor
                 filename = os.path.basename(defining_module_path)
                 symbol_name = ""
                 symbol_kind = ""
@@ -380,9 +393,10 @@ class LangServer:
                     "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH,
                                          rel_path),
                     "file": filename
-                }    
-                  
-            if d.is_definition() and d.line is not None and d.column is not None:
+                }
+
+            if (d.is_definition() and
+                    d.line is not None and d.column is not None):
                 location = {
                     # TODO(renfred) determine why d.module_path is empty.
                     "uri": "file://" + (d.module_path or path),
@@ -397,7 +411,8 @@ class LangServer:
                         },
                     },
                 }
-                # add a position hint in case this eventually gets passed to an operation that could use it
+                # add a position hint in case this eventually gets passed to an
+                # operation that could use it
                 if symbol_locator["symbol"]:
                     symbol_locator["symbol"]["position"] = location["range"][
                         "start"]
@@ -413,7 +428,8 @@ class LangServer:
             if result not in unique_results:
                 unique_results.append(result)
 
-        # if there's more than one definition, go ahead and remove the ones that are the same as the input position
+        # if there's more than one definition, go ahead and remove the ones
+        # that are the same as the input position
         if len(unique_results) > 1:
             unique_results = [
                 ur for ur in unique_results
@@ -423,10 +439,13 @@ class LangServer:
 
     @staticmethod
     def is_circular(reference, definition):
-        """
-        Takes a reference location and a definition location, and determines whether they're the same (and hence
-        useless). We need to do this because getting the definition of an import (using Jedi's goto_assignments
-        method) sometimes returns that same import. We filter out such cases and fall back on goto_definitions.
+        """Takes a reference location and a definition location, and determines
+        whether they're the same (and hence useless).
+
+        We need to do this because getting the definition of an import
+        (using Jedi's goto_assignments method) sometimes returns that
+        same import. We filter out such cases and fall back on
+        goto_definitions.
         """
         if not reference or not definition:
             return False
@@ -435,8 +454,9 @@ class LangServer:
         if definition["range"]["start"]["line"] == 0 \
                 and definition["range"]["end"]["line"] == 0 \
                 and definition["range"]["start"]["character"] == 0:
-            # if the definition is at the very beginning of the same file, then we've almost certainly jumped to the
-            # beginning of the module that we're already inside of
+            # if the definition is at the very beginning of the same file,
+            # then we've almost certainly jumped to the beginning of the
+            # module that we're already inside of
             return True
         if reference["line"] < definition["range"]["start"]["line"] \
                 or reference["line"] > definition["range"]["end"]["line"]:
@@ -550,13 +570,15 @@ class LangServer:
         }
         self.conn.send_notification(
             "$/partialResult", partial_initializer) if self.streaming else None
-        # We can't use Jedi to get x-refs because we only have a symbol descriptor, not a source location and source
-        # file. I tried fetching the package that's mentioned in the symbol descriptor and providing the source of the
-        # definition for Jedi, but that didn't seem to work, maybe because the fetched package is in the local FS
-        # cache, whereas the project files are handled by the remote FS. Anyway, unless we want to dig further into
-        # Jedi or rewrite the FS abstraction, it's easier to manually parse the source files and search the ASTs. We
-        # can still use Jedi to eliminate false positives by ensuring that each returned reference has a definition
-        # that matches the symbol descriptor.
+        # We can't use Jedi to get x-refs because we only have a symbol descriptor,
+        # not a source location and source file. I tried fetching the package that's
+        # mentioned in the symbol descriptor and providing the source of the
+        # definition for Jedi, but that didn't seem to work, maybe because the fetched
+        # package is in the local FS cache, whereas the project files are handled by the remote FS.
+        # Anyway, unless we want to dig further into Jedi or rewrite the FS abstraction, it's
+        # easier to manually parse the source files and search the ASTs. We can still use Jedi to
+        # eliminate false positives by ensuring that each returned reference has a definition that
+        # matches the symbol descriptor.
         for ref_batch in get_references(package_name, symbol_name, self.fs,
                                         self.root_path, parent_span):
             json_patch = []
@@ -680,7 +702,8 @@ def main():
 
     log.info("Setting Python path to %s", GlobalConfig.PYTHON_PATH)
 
-    # if args.lightstep_token isn't set, we'll fall back on the default no-op opentracing implementation
+    # if args.lightstep_token isn't set, we'll fall back on the default no-op
+    # opentracing implementation
     if args.lightstep_token:
         opentracing.tracer = lightstep.Tracer(
             component_name="python-langserver",

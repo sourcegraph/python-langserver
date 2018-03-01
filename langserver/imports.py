@@ -4,13 +4,15 @@ import multiprocessing
 
 
 def get_imports(fs, root_path, parent_span):
-    # TODO: consider crawling over the main project files only; ignore examples, tests, etc
+    # TODO: consider crawling over the main project files only; ignore
+    # examples, tests, etc
     py_paths = (path for path in fs.walk(root_path) if path.endswith(".py"))
     py_srces = fs.batch_open(py_paths, parent_span)
     with multiprocessing.Pool() as p:
         import_chunks = p.imap_unordered(
             _imap_extract_imports, py_srces, chunksize=10)
-        imports = {i.split(".")[0] for i in itertools.chain.from_iterable(import_chunks)}
+        imports = {i.split(".")[0]
+                   for i in itertools.chain.from_iterable(import_chunks)}
     return imports
 
 
@@ -41,7 +43,9 @@ class ImportVisitor:
             yield n.name
 
     def visit_ImportFrom(self, node, container):
-        if not node.level:  # we only care about top-level imports, and definitely want to ignore internal imports
+        # we only care about top-level imports, and definitely want to
+        # ignore internal imports
+        if not node.level:
             yield node.module
 
     # Based on ast.NodeVisitor.visit

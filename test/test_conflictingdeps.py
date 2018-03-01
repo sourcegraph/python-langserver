@@ -2,6 +2,7 @@ from .harness import Harness
 import uuid
 import pytest
 
+
 @pytest.fixture()
 def workspace():
     workspace = Harness("repos/confl_dep")
@@ -9,17 +10,18 @@ def workspace():
     yield workspace
     workspace.exit()
 
+
 class TestConflictingDependencies:
     def test_hover_packages_conflicting_module_names(self, workspace):
         uri = "file:///confl_dep/__main__.py"
-    
+
         # django import
         d_line, d_col = 0, 11
         d_result = workspace.hover(uri, d_line, d_col)
         assert d_result == {
             'contents': [
                 {
-                    'language': 'python', 
+                    'language': 'python',
                     'value': 'django'
                 }
             ]
@@ -31,9 +33,9 @@ class TestConflictingDependencies:
         assert j_result == {
             'contents': [
                 {
-                    'language': 'python', 
+                    'language': 'python',
                     'value': 'jinja2'
-                }, 
+                },
                 'jinja2\n'
                 '~~~~~~\n'
                 '\n'

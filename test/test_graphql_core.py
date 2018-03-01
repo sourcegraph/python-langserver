@@ -1,10 +1,11 @@
-from .harness import Harness, print_result
+from .harness import Harness
 import uuid
 import pytest
 
 
 graphql_core_workspace = Harness("repos/graphql-core")
-graphql_core_workspace.initialize("git://github.com/plangrid/graphql-core?" + str(uuid.uuid4()))
+graphql_core_workspace.initialize(
+    "git://github.com/plangrid/graphql-core?" + str(uuid.uuid4()))
 
 
 def test_relative_import_definition():
@@ -69,7 +70,8 @@ def test_relative_import_definition():
     ]
 
 
-# TODO(aaron): not all relative imports work; seems to be a Jedi bug, as it appears in other Jedi-based extensions too
+# TODO(aaron): not all relative imports work; seems to be a Jedi bug, as
+# it appears in other Jedi-based extensions too
 @pytest.mark.skip(reason="Jedi bug")
 def test_relative_import_definition_broken():
     result = graphql_core_workspace.definition("/graphql/__init__.py", 52, 8)

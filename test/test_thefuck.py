@@ -1,14 +1,17 @@
-from .harness import Harness, print_result
+from .harness import Harness
 import uuid
 
 
 thefuck_workspace = Harness("repos/thefuck")
-thefuck_workspace.initialize("git://github.com/nvbn/thefuck?" + str(uuid.uuid4()))
+thefuck_workspace.initialize(
+    "git://github.com/nvbn/thefuck?" + str(uuid.uuid4()))
 
 
-# make sure that the resulting locations don't refer to files on the local filesystem
+# make sure that the resulting locations don't refer to files on the local
+# filesystem
 def test_local_references():
-    result = thefuck_workspace.references("/thefuck/argument_parser.py", 22, 21)
+    result = thefuck_workspace.references(
+        "/thefuck/argument_parser.py", 22, 21)
     assert result == [
         {
             'uri': 'file:///thefuck/argument_parser.py',

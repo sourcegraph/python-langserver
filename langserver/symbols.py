@@ -10,7 +10,8 @@ log = logging.getLogger(__name__)
 
 
 class SymbolKind(Enum):
-    """SymbolKind corresponds to the SymbolKind enum type found in the LSP spec."""
+    """SymbolKind corresponds to the SymbolKind enum type found in the LSP
+    spec."""
     File = 1
     Module = 2
     Namespace = 3
@@ -42,7 +43,9 @@ class Symbol:
 
     def score(self, query: str) -> int:
         """Score a symbol based on how well it matches a query.
-        Useful for sorting."""
+
+        Useful for sorting.
+        """
         score = 0
         if self.kind == SymbolKind.Class:
             score += 1
@@ -101,11 +104,12 @@ class Symbol:
 
 
 def extract_symbols(source, path):
-    """extract_symbols is a generator yielding symbols for source"""
+    """extract_symbols is a generator yielding symbols for source."""
     try:
         tree = ast.parse(source)
     except SyntaxError as e:
-        log.error("Error parsing Python file %s:%s -- %s: %s", path, e.lineno, e.msg, e.text)
+        log.error("Error parsing Python file %s:%s -- %s: %s",
+                  path, e.lineno, e.msg, e.text)
         return
 
     s = SymbolVisitor()
@@ -115,12 +119,13 @@ def extract_symbols(source, path):
 
 
 def extract_exported_symbols(source, path):
-    is_exported = lambda s: not (s.name.startswith('_') or (s.container is not None and s.container.startswith('_')))
+    def is_exported(s): return not (s.name.startswith('_') or (
+        s.container is not None and s.container.startswith('_')))
     return filter(is_exported, extract_symbols(source, path))
 
 
 def workspace_symbols(fs, root_path, parent_span):
-    "returns a list of all exported symbols under root_path in fs."
+    """returns a list of all exported symbols under root_path in fs."""
     py_paths = (path for path in fs.walk(root_path) if path.endswith(".py"))
     py_srces = fs.batch_open(py_paths, parent_span)
     with multiprocessing.Pool() as p:
@@ -167,8 +172,8 @@ class SymbolVisitor:
                 container=container)
 
     def visit_If(self, node, container):
-        # If is often used provide different implementations for the same var. To avoid duplicate names, we only visit
-        # the true body.
+        # If is often used provide different implementations for the same var. To avoid duplicate
+        # names, we only visit the true body.
         for child in node.body:
             yield from self.visit(child, container)
 
@@ -191,5 +196,3 @@ class SymbolVisitor:
                         yield from self.visit(item, container)
             elif isinstance(value, ast.AST):
                 yield from self.visit(value, container)
-
-

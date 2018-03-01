@@ -13,4 +13,5 @@ before_install:
 install: "make"
 
 script:
+    - make lint
     - make test

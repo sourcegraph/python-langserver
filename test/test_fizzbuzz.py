@@ -1,8 +1,8 @@
 from .harness import Harness
-import pytest
 
 fizzbuzz_workspace = Harness("repos/fizzbuzz_service")
 fizzbuzz_workspace.initialize("")
+
 
 def test_x_packages():
     result = fizzbuzz_workspace.x_packages()
@@ -33,25 +33,28 @@ def test_local_hover():
                 'language': 'python',
                 'value': 'class NumberLooper(param start, param end)'
             },
-            'Very important class that is capable of gathering all the number strings in [start, end)'
+            'Very important class that is capable of gathering all the number strings '
+            'in [start, end)'
         ]
     }
+
 
 def test_local_package_cross_module_hover():
     uri = "file:///fizzbuzz_service/string_deciders/number_decider.py"
     line, col = 4, 22
     result = fizzbuzz_workspace.hover(uri, line, col)
-    
+
     assert result == {
         'contents': [
             {
-                'language': 'python', 
+                'language': 'python',
                 'value': 'def decide_output_for_number(param number)'
-            }, 
+            },
             'Decides the output for a given number'
         ]
     }
-    
+
+
 def test_cross_package_hover():
     uri = "file:///fizzbuzz_service/checkers/fizzbuzz/fizzbuzz_checker.py"
     line, col = 5, 31
@@ -66,6 +69,7 @@ def test_cross_package_hover():
         ]
     }
 
+
 def test_std_lib_hover():
     uri = "file:///fizzbuzz_service/__main__.py"
     line, col = 5, 10
@@ -75,7 +79,7 @@ def test_std_lib_hover():
             {
                 'language': 'python',
                 'value': 'def print(param value, param ..., param sep, param '
-                                    'end, param file, param flush)'
+                'end, param file, param flush)'
             },
             "print(value, ..., sep=' ', end='\\n', file=sys.stdout, "
             'flush=False)\n'
@@ -90,6 +94,7 @@ def test_std_lib_hover():
         ]
     }
 
+
 def test_local_defintion():
     uri = "/fizzbuzz_service/string_deciders/number_decision.py"
     line, col = 21, 21
@@ -99,25 +104,25 @@ def test_local_defintion():
             'symbol': {
                 'package': {
                     'name': 'fizzbuzz_service'
-                }, 
-                'name': 'OutputDecision', 
-                'container': 'fizzbuzz_service.string_deciders.number_decision', 
-                'kind': 'class', 
-                'file': 'number_decision.py', 
+                },
+                'name': 'OutputDecision',
+                'container': 'fizzbuzz_service.string_deciders.number_decision',
+                'kind': 'class',
+                'file': 'number_decision.py',
                 'position': {
-                    'line': 5, 
+                    'line': 5,
                     'character': 6
                 }
-            }, 
+            },
             'location': {
-                'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+                'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
                 'range': {
                     'start': {
-                        'line': 5, 
+                        'line': 5,
                         'character': 6
-                    }, 
+                    },
                     'end': {
-                        'line': 5, 
+                        'line': 5,
                         'character': 20
                     }
                 }
@@ -125,37 +130,38 @@ def test_local_defintion():
         }
     ]
 
+
 def test_local_package_cross_module_definition():
     uri = "file:///fizzbuzz_service/string_deciders/number_decider.py"
     line, col = 4, 25
     result = fizzbuzz_workspace.definition(uri, line, col)
     definition = {
-            'symbol': {
-                'package': {
-                    'name': 'fizzbuzz_service'
-                }, 
-                'name': 'decide_output_for_number', 
-                'container': 'fizzbuzz_service.string_deciders.number_decision',
-                'kind': 'def', 
-                'file': 'number_decision.py', 
-                'position': {
-                    'line': 12, 
+        'symbol': {
+            'package': {
+                'name': 'fizzbuzz_service'
+            },
+            'name': 'decide_output_for_number',
+            'container': 'fizzbuzz_service.string_deciders.number_decision',
+            'kind': 'def',
+            'file': 'number_decision.py',
+            'position': {
+                    'line': 12,
                     'character': 4
-                }
-            }, 
-            'location': {
-                'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
-                'range': {
-                    'start': {
-                        'line': 12, 
-                        'character': 4
-                    }, 
-                    'end': {
-                        'line': 12, 
-                        'character': 28
-                    }
+            }
+        },
+        'location': {
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
+            'range': {
+                'start': {
+                    'line': 12,
+                    'character': 4
+                },
+                'end': {
+                    'line': 12,
+                    'character': 28
                 }
             }
+        }
     }
 
     # from the import statement at the top of the file
@@ -163,25 +169,25 @@ def test_local_package_cross_module_definition():
         'symbol': {
             'package': {
                 'name': 'fizzbuzz_service'
-            }, 
-            'name': 'decide_output_for_number', 
-            'container': 'fizzbuzz_service.string_deciders.number_decider', 
-            'kind': 'def', 
-            'file': 'number_decider.py', 
+            },
+            'name': 'decide_output_for_number',
+            'container': 'fizzbuzz_service.string_deciders.number_decider',
+            'kind': 'def',
+            'file': 'number_decider.py',
             'position': {
-                'line': 0, 
+                'line': 0,
                 'character': 45
             }
-        }, 
+        },
         'location': {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py',
             'range': {
                 'start': {
-                    'line': 0, 
+                    'line': 0,
                     'character': 45
-                }, 
+                },
                 'end': {
-                    'line': 0, 
+                    'line': 0,
                     'character': 69
                 }
             }
@@ -192,6 +198,7 @@ def test_local_package_cross_module_definition():
 
     assert definition in result
     assert assignment in result
+
 
 def test_cross_package_definition():
     uri = "file:///fizzbuzz_service/checkers/fizzbuzz/fizzbuzz_checker.py"
@@ -208,19 +215,19 @@ def test_cross_package_definition():
             'kind': 'def',
             'file': 'buzz_checker.py',
             'position': {
-                'line': 0, 
+                'line': 0,
                 'character': 4
             }
         },
         'location': {
-            'uri': 'file:///fizzbuzz_service/checkers/buzz/buzz_checker.py', 
+            'uri': 'file:///fizzbuzz_service/checkers/buzz/buzz_checker.py',
             'range': {
                 'start': {
-                    'line': 0, 
+                    'line': 0,
                     'character': 4
-                }, 
+                },
                 'end': {
-                    'line': 0, 
+                    'line': 0,
                     'character': 15
                 }
             }
@@ -238,29 +245,30 @@ def test_cross_package_definition():
             'kind': 'def',
             'file': 'fizzbuzz_checker.py',
             'position': {
-                'line': 1, 
+                'line': 1,
                 'character': 32
             },
         },
         'location': {
-            'uri': 'file:///fizzbuzz_service/checkers/fizzbuzz/fizzbuzz_checker.py', 
+            'uri': 'file:///fizzbuzz_service/checkers/fizzbuzz/fizzbuzz_checker.py',
             'range': {
                 'start': {
-                    'line': 1, 
+                    'line': 1,
                     'character': 32
                 },
                 'end': {
-                    'line': 1, 
+                    'line': 1,
                     'character': 43
                 }
             }
         }
     }
-    
+
     assert len(result) == 2
 
     assert definition in result
     assert assignment in result
+
 
 def test_local_package_cross_module_import_definition():
     uri = "file:///fizzbuzz_service/string_deciders/number_decider.py"
@@ -269,21 +277,19 @@ def test_local_package_cross_module_import_definition():
 
     assert len(result) == 1
     definition = result[0]
-    
+
     assert "symbol" in definition
     assert definition["symbol"] == {
-                'package': {
-                    'name': 'fizzbuzz_service'
-                },
-                'name': 'number_decision',
-                'container': 'fizzbuzz_service.string_deciders.number_decision',
-                'kind': 'module',
-                'file': 'number_decision.py',
-                'position': {
-                    'line': 0, 
-                    'character': 0
-                },
-            }
+        'package': {
+            'name': 'fizzbuzz_service'},
+        'name': 'number_decision',
+        'container': 'fizzbuzz_service.string_deciders.number_decision',
+        'kind': 'module',
+        'file': 'number_decision.py',
+        'position': {
+            'line': 0,
+            'character': 0},
+    }
 
     assert "location" in definition
     location = definition["location"]
@@ -292,6 +298,7 @@ def test_local_package_cross_module_import_definition():
 
     # TODO: In the case of a module, does the range have any meaning?
 
+
 def test_cross_package_import_definition():
     uri = "file:///fizzbuzz_service/loopers/number_looper.py"
     line, col = 0, 31
@@ -299,7 +306,7 @@ def test_cross_package_import_definition():
 
     assert len(result) == 1
     definition = result[0]
-    
+
     assert "symbol" in definition
     assert definition["symbol"] == {
         'package': {
@@ -310,7 +317,7 @@ def test_cross_package_import_definition():
         'kind': 'module',
         'file': '__init__.py',
         'position': {
-            'line': 0, 
+            'line': 0,
             'character': 0
         },
     }
@@ -322,11 +329,12 @@ def test_cross_package_import_definition():
 
     # TODO: In the case of a module, does the range have any meaning?
 
+
 def test_std_lib_definition():
     uri = 'file:///fizzbuzz_service/string_deciders/number_decision.py'
     line, col = 5, 23
     result = fizzbuzz_workspace.definition(uri, line, col)
-    
+
     definition = {
         'symbol': {
             'package': {
@@ -338,10 +346,10 @@ def test_std_lib_definition():
             'path': 'Lib/enum.py',
             'file': 'enum.py',
             'position': {
-                'line': 508, 
+                'line': 508,
                 'character': 6
             },
-        }, 
+        },
         'location': None
     }
 
@@ -356,19 +364,19 @@ def test_std_lib_definition():
             'kind': 'class',
             'file': 'number_decision.py',
             'position': {
-                'line': 0, 
+                'line': 0,
                 'character': 17
             },
         },
         'location': {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
             'range': {
                 'start': {
-                    'line': 0, 
+                    'line': 0,
                     'character': 17
                 },
                 'end': {
-                    'line': 0, 
+                    'line': 0,
                     'character': 21
                 }
             }
@@ -380,100 +388,101 @@ def test_std_lib_definition():
     assert definition in result
     assert assignment in result
 
+
 def test_local_references():
     uri = 'file:///fizzbuzz_service/string_deciders/number_decision.py'
     line, col = 5, 13
     result = fizzbuzz_workspace.references(uri, line, col)
-    
+
     references = [
         {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py',
             'range': {
                 'start': {
-                    'line': 6, 
+                    'line': 6,
                     'character': 19
                 },
                 'end': {
-                    'line': 6, 
+                    'line': 6,
                     'character': 33
                 }
             }
         },
         {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py',
             'range': {
                 'start': {
-                    'line': 9, 
+                    'line': 9,
                     'character': 19
                 },
                 'end': {
-                    'line': 9, 
+                    'line': 9,
                     'character': 33
                 }
             }
         },
         {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decider.py',
             'range': {
                 'start': {
-                    'line': 12, 
+                    'line': 12,
                     'character': 19
                 },
                 'end': {
-                    'line': 12, 
+                    'line': 12,
                     'character': 33
                 }
             }
         },
         {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
             'range': {
                 'start': {
-                    'line': 15, 
+                    'line': 15,
                     'character': 15
                 },
                 'end': {
-                    'line': 15, 
+                    'line': 15,
                     'character': 29
                 }
             }
         },
         {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
             'range': {
                 'start': {
-                    'line': 18, 
+                    'line': 18,
                     'character': 15
                 },
                 'end': {
-                    'line': 18, 
+                    'line': 18,
                     'character': 29
                 }
             }
         },
         {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
             'range': {
                 'start': {
-                    'line': 21, 
+                    'line': 21,
                     'character': 15
-                }, 
-                'end': 
+                },
+                'end':
                 {
-                    'line': 21, 
+                    'line': 21,
                     'character': 29
                 }
             }
         },
         {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
             'range': {
                 'start': {
-                    'line': 23, 
+                    'line': 23,
                     'character': 11
                 },
                 'end': {
-                    'line': 23, 
+                    'line': 23,
                     'character': 25
                 }
             }
@@ -484,48 +493,37 @@ def test_local_references():
     for ref in references:
         assert ref in result
 
+
 def test_x_references():
     result = fizzbuzz_workspace.x_references("enum", "Enum")
 
     import_ref = {
         'reference': {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
             'range': {
                 'start': {
-                    'line': 0, 
-                    'character': 0
-                }, 
+                    'line': 0,
+                    'character': 0},
                 'end': {
-                    'line': 0, 
-                    'character': 4
-                }
-            }
-        }, 
+                    'line': 0,
+                    'character': 4}}},
         'symbol': {
-            'container': 'enum', 
-            'name': 'Enum'
-        }
-    }
+            'container': 'enum',
+            'name': 'Enum'}}
 
     base_class_ref = {
         'reference': {
-            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py', 
+            'uri': 'file:///fizzbuzz_service/string_deciders/number_decision.py',
             'range': {
                 'start': {
-                    'line': 5, 
-                    'character': 21
-                }, 
+                    'line': 5,
+                    'character': 21},
                 'end': {
-                    'line': 5, 
-                    'character': 25
-                }
-            }
-        }, 
+                    'line': 5,
+                    'character': 25}}},
         'symbol': {
-            'container': 'enum', 
-            'name': 'Enum'
-        }
-    }
+            'container': 'enum',
+            'name': 'Enum'}}
 
     assert len(result) == 2
 

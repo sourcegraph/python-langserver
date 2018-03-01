@@ -8,9 +8,9 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.realpath(__file__)))
 
-from langserver.fs import InMemoryFileSystem
-from langserver.langserver import LangServer
-from langserver.symbols import extract_symbols
+from langserver.fs import InMemoryFileSystem  # noqa: E402
+from langserver.langserver import LangServer  # noqa: E402
+from langserver.symbols import extract_symbols  # noqa: E402
 
 FS = InMemoryFileSystem({
     '/example_file.py':
@@ -95,19 +95,23 @@ def test_hover_on_string_variable():
 def test_hover_on_str():
     h = hover('/c.py', 5, 16)
     assert h == {
-        'contents': [{'language': 'python', 'value': 'class str(param object)'},
-                     "str(object='') -> str\n"
-                     'str(bytes_or_buffer[, encoding[, errors]]) -> str\n'
-                     '\n'
-                     'Create a new string object from the given object. If encoding '
-                     'or\n'
-                     'errors is specified, then the object must expose a data buffer\n'
-                     'that will be decoded using the given encoding and error '
-                     'handler.\n'
-                     'Otherwise, returns the result of object.__str__() (if defined)\n'
-                     'or repr(object).\n'
-                     'encoding defaults to sys.getdefaultencoding().\n'
-                     "errors defaults to 'strict'."]
+        'contents': [
+            {
+                'language': 'python',
+                'value': 'class str(param object)'
+            },
+            "str(object='') -> str\n"
+            'str(bytes_or_buffer[, encoding[, errors]]) -> str\n'
+            '\n'
+            'Create a new string object from the given object. If encoding '
+            'or\n'
+            'errors is specified, then the object must expose a data buffer\n'
+            'that will be decoded using the given encoding and error '
+            'handler.\n'
+            'Otherwise, returns the result of object.__str__() (if defined)\n'
+            'or repr(object).\n'
+            'encoding defaults to sys.getdefaultencoding().\n'
+            "errors defaults to 'strict'."]
     }
 
 
@@ -122,7 +126,6 @@ def test_hover_another_file():
     }
 
 
-#@pytest.mark.skip(reason="Failing")
 def test_hover_stdlib():
     h = hover('/b.py', 5, 23)
     assert h == {
@@ -131,7 +134,9 @@ def test_hover_stdlib():
             'language': 'python',
             'value': 'def fnmatchcase(param name, param pat)'
         },
-            "Test whether FILENAME matches PATTERN, including case.\n\nThis is a version of fnmatch() which doesn't case-normalize\nits arguments."
+            "Test whether FILENAME matches PATTERN, including case.\n"
+            "\nThis is a version of fnmatch() which doesn't case-normalize\n"
+            "its arguments."
         ]
     }
 

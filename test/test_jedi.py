@@ -1,8 +1,9 @@
-from .harness import Harness, print_result
+from .harness import Harness
 import uuid
 
 jedi_workspace = Harness("repos/jedi")
-jedi_workspace.initialize("git://github.com/davidhalter/jedi?" + str(uuid.uuid4()))
+jedi_workspace.initialize(
+    "git://github.com/davidhalter/jedi?" + str(uuid.uuid4()))
 
 
 def test_x_packages():

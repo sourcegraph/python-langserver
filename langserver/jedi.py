@@ -60,8 +60,8 @@ class RemoteJedi:
             del kwargs['trace']
 
         def find_module_remote(string, dir=None, fullname=None):
-            """A swap-in replacement for Jedi's find module function that uses the
-            remote fs to resolve module imports."""
+            """A swap-in replacement for Jedi's find module function that uses
+            the remote fs to resolve module imports."""
             if dir is None:
                 dir = get_module_search_paths(string, path)
             with opentracing.start_child_span(
@@ -73,17 +73,21 @@ class RemoteJedi:
                 the_module = None
 
                 # TODO: move this bit of logic into the Workspace?
-                # default behavior is to search for built-ins first, but skip this if we're actually in the stdlib repo
+                # default behavior is to search for built-ins first, but skip
+                # this if we're actually in the stdlib repo
                 if fullname and not self.workspace.is_stdlib:
                     the_module = self.workspace.find_stdlib_module(fullname)
 
                 if the_module == "native":  # break if we get a native module
-                    raise ImportError('Module "{}" not found in {}', string, dir)
+                    raise ImportError(
+                        'Module "{}" not found in {}', string, dir)
 
-                # TODO: use this clause's logic for the other clauses too (stdlib and external modules)
-                # after searching for built-ins, search the current project
+                # TODO: use this clause's logic for the other clauses too
+                # (stdlib and external modules) after searching for built-ins,
+                # search the current project
                 if not the_module:
-                    module_file, module_path, is_package = self.workspace.find_internal_module(string, fullname, dir)
+                    module_file, module_path, is_package = self.workspace.find_internal_module(
+                        string, fullname, dir)
                     if module_file or module_path:
                         if is_package and module_path.endswith(".py"):
                             module_path = os.path.dirname(module_path)
@@ -94,13 +98,16 @@ class RemoteJedi:
                     the_module = self.workspace.find_external_module(fullname)
 
                 if not the_module:
-                    raise ImportError('Module "{}" not found in {}', string, dir)
+                    raise ImportError(
+                        'Module "{}" not found in {}', string, dir)
 
                 is_package = the_module.is_package
-                module_file = self.workspace.open_module_file(the_module, find_module_span)
+                module_file = self.workspace.open_module_file(
+                    the_module, find_module_span)
                 module_path = the_module.path
                 if is_package and the_module.is_namespace_package:
-                    module_path = jedi._compatibility.ImplicitNSInfo(fullname, [module_path])
+                    module_path = jedi._compatibility.ImplicitNSInfo(
+                        fullname, [module_path])
                     is_package = False
                 elif is_package and module_path.endswith(".py"):
                     module_path = filepath.dirname(module_path)
@@ -125,9 +132,12 @@ class RemoteJedi:
                 result = self.fs.open(path, load_source_span)
                 return result
 
-        # TODO(keegan) It shouldn't matter if we are using a remote fs or not. Consider other ways to hook into the import system.
-        # TODO(aaron) Also, it shouldn't matter whether we're using a "real" filesystem or our test harness filesystem
-        if isinstance(self.fs, RemoteFileSystem) or isinstance(self.fs, TestFileSystem):
+        # TODO(keegan) It shouldn't matter if we are using a remote fs or not.
+        # Consider other ways to hook into the import system.
+        # TODO(aaron) Also, it shouldn't matter whether we're using a "real"
+        # filesystem or our test harness filesystem
+        if isinstance(self.fs, RemoteFileSystem) or isinstance(
+                self.fs, TestFileSystem):
             kwargs.update(
                 find_module=find_module_remote,
                 list_modules=list_modules,
@@ -137,26 +147,27 @@ class RemoteJedi:
 
         return jedi.api.Script(*args, **kwargs)
 
+
 def get_module_search_paths(module_name, script_file_path):
-    '''
-    Provides an ordered list of directories in the workspace to search for the 
-    given 'module_name', starting from the directory that the script is operating on. 
-    
+    """Provides an ordered list of directories in the workspace to search for
+    the given 'module_name', starting from the directory that the script is
+    operating on.
+
     This mimics Jedi's modifications of sys.path that it uses during module resolution.
-    See: 
+    See:
     https://sourcegraph.com/github.com/sourcegraph/jedi/-/blob/jedi/evaluate/imports.py#L237:9
 
-    Note that this does not handle some corner cases, see: 
+    Note that this does not handle some corner cases, see:
     https://www.python.org/dev/peps/pep-0235/
-    '''
+    """
     for parent in traverse_parents(script_file_path):
         if os.path.basename(parent) == module_name:
             yield parent
-        
+
 
 def traverse_parents(path):
     '''
-    Returns all parent directories for the given file path - Copied from: 
+    Returns all parent directories for the given file path - Copied from:
     https://sourcegraph.com/github.com/sourcegraph/jedi/-/blob/jedi/evaluate/sys_path.py#L228:5
     '''
     while True:

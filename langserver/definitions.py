@@ -8,14 +8,15 @@ log = logging.getLogger(__name__)
 
 
 class TargetedSymbolVisitor:
-    """
-    The purpose of this class is to take a SymbolDescriptor (typically the result of a preceding x-definition request)
-    and perform a more precise symbol search based on the extra metadata available in the descriptor.
-    """
+    """The purpose of this class is to take a SymbolDescriptor (typically the
+    result of a preceding x-definition request) and perform a more precise
+    symbol search based on the extra metadata available in the descriptor."""
+
     def __init__(self, name, kind, path):
         self.name = name
         self.kind = kind
-        # the AST nodes for modules don't contain their name, so we have to infer it from the file or folder name
+        # the AST nodes for modules don't contain their name, so we have to
+        # infer it from the file or folder name
         folder, file = os.path.split(path)
         if file == "__init__.py":
             self.module = os.path.basename(folder)
@@ -38,7 +39,8 @@ class TargetedSymbolVisitor:
             yield from self.generic_visit(node)
 
     def visit_ImportFrom(self, node, container):
-        # this handles the case where imported symbols are re-exported; an xj2d sometimes needs to land here
+        # this handles the case where imported symbols are re-exported; an xj2d
+        # sometimes needs to land here
         for n in node.names:
             if n.name == self.name:
                 yield Symbol(
@@ -116,8 +118,8 @@ class TargetedSymbolVisitor:
                 return
 
     def visit_If(self, node, container):
-        # If is often used provide different implementations for the same var. To avoid duplicate names, we only visit
-        # the true body.
+        # If is often used provide different implementations for the same var. To avoid duplicate
+        # names, we only visit the true body.
         for child in node.body:
             yield from self.visit(child, container)
 
@@ -171,9 +173,11 @@ def targeted_symbol(symbol_descriptor, fs, root_path, parent_span):
         try:
             tree = ast.parse(source, path)
         except SyntaxError as e:
-            log.error("Error parsing Python file %s:%s -- %s: %s", path, e.lineno, e.msg, e.text)
+            log.error("Error parsing Python file %s:%s -- %s: %s",
+                      path, e.lineno, e.msg, e.text)
             continue
-        visitor = TargetedSymbolVisitor(symbol_descriptor["name"], symbol_descriptor["kind"], path)
+        visitor = TargetedSymbolVisitor(
+            symbol_descriptor["name"], symbol_descriptor["kind"], path)
         for sym in visitor.visit(tree):
             sym.file = path
             symbols.append(sym.json_object())

@@ -1,4 +1,3 @@
-import base64
 import os
 import os.path
 from abc import ABC, abstractmethod
@@ -54,7 +53,6 @@ class LocalFileSystem(FileSystem):
             return open_file.read()
 
     def listdir(self, path, parent_span=None):
-        entries = []
         names = os.listdir(path)
         # TODO: prepend `path` to each name?
         return names
@@ -124,7 +122,7 @@ class RemoteFileSystem(FileSystem):
 
     def batch_open(self, paths, parent_span):
         with opentracing.start_child_span(
-                parent_span, "RemoteFileSystem.batch_open") as batch_open_span:
+                parent_span, "RemoteFileSystem.batch_open"):
             # We need to read the iterator paths twice, so convert to list
             paths = list(paths)
             responses = self.conn.send_request_batch(("textDocument/xcontent",
@@ -136,7 +134,8 @@ class RemoteFileSystem(FileSystem):
                                                       }) for path in paths)
             for path, resp in zip(paths, responses):
                 if "error" in resp:
-                    # Consume rest of generator to ensure resources are shutdown
+                    # Consume rest of generator to ensure resources are
+                    # shutdown
                     for _ in responses:
                         pass
                     raise FileException(resp["error"])
@@ -174,8 +173,9 @@ class InMemoryFileSystem(FileSystem):
         return entries.values()
 
 
-# TODO(aaron): determine whether this extra filesystem is really necessary, or if we could have just used a local fs
-# I suspect not, because the new workspace indexing/importing code wasn't written with a local fs in mind
+# TODO(aaron): determine whether this extra filesystem is really necessary, or if we could have
+# just used a local fs I suspect not, because the new workspace indexing/importing code wasn't
+# written with a local fs in mind
 class TestFileSystem(FileSystem):
     def __init__(self, local_root_path: str):
         self.root = os.path.abspath(local_root_path)
@@ -194,7 +194,9 @@ class TestFileSystem(FileSystem):
 
     def listdir(self, path: str, parent_span=None):
         path = os.path.abspath(path)
-        if not path.startswith(self.root):  # need this check for namespace imports, for which we get a relative path
+        # need this check for namespace imports, for which we get a relative
+        # path
+        if not path.startswith(self.root):
             if path.startswith("/"):
                 path = path[1:]
             path = os.path.join(self.root, path)
