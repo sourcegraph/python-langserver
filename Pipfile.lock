@@ -1,7 +1,7 @@
 {
     "_meta": {
         "hash": {
-            "sha256": "a87c841063a059630cc78a587661ae1d78009bfff052cfb964b88571f2f75be1"
+            "sha256": "a60044d027ec228213683ce4cc0cfc7246552d4a800ad9c284756dea51651027"
         },
         "host-environment-markers": {
             "implementation_name": "cpython",
@@ -35,6 +35,20 @@
             ],
             "version": "==2.2.1"
         },
+        "certifi": {
+            "hashes": [
+                "sha256:14131608ad2fd56836d33a71ee60fa1c82bc9d2c8d98b7bdbc631fe1b3cd1296",
+                "sha256:edbc3f203427eef571f79a7692bb160a2b0f7ccaa31953e99bd17e307cf63f7d"
+            ],
+            "version": "==2018.1.18"
+        },
+        "chardet": {
+            "hashes": [
+                "sha256:fc323ffcaeaed0e0a02bf4d117757b98aed530d9ed4531e3e15460124c106691",
+                "sha256:84ab92ed1c4d4f16916e05906b6b75a6c0fb5db821cc65e70cbd64a3e2a5eaae"
+            ],
+            "version": "==3.0.4"
+        },
         "delegator.py": {
             "hashes": [
                 "sha256:58f3ea6fe36680e1d828e2e66e52844b826f186409dfee4436e42351b0e699fe",
@@ -42,10 +56,17 @@
             ],
             "version": "==0.1.0"
         },
+        "idna": {
+            "hashes": [
+                "sha256:8c7309c718f94b3a625cb648ace320157ad16ff131ae0af362c9f21b80ef6ec4",
+                "sha256:2c6a5de3089009e3da7c5dde64a141dbc8551d5b7f6cf4ed7c2568d0cc520a8f"
+            ],
+            "version": "==2.6"
+        },
         "jedi": {
             "editable": true,
             "git": "git://github.com/sourcegraph/jedi.git",
-            "ref": "9a3e7256df2e6099207fd7289141885ec17ebec7"
+            "ref": "dee138a06ce5568bfda1f88d77184223c5cf5b8d"
         },
         "jsonpickle": {
             "hashes": [
@@ -66,12 +87,25 @@
             ],
             "version": "==1.3.0"
         },
+        "pew": {
+            "hashes": [
+                "sha256:a5256586e169199cb2213225261b6bdd7b657c309dcf4a02b61994308b313d4d",
+                "sha256:b8312728526c9010295c88215c95a1b1731fdbd1a568f728e069932bd0545611"
+            ],
+            "version": "==1.1.2"
+        },
         "pexpect": {
             "hashes": [
                 "sha256:6ff881b07aff0cb8ec02055670443f784434395f90c3285d2ae470f921ade52a",
                 "sha256:67b85a1565968e3d5b5e7c9283caddc90c3947a2625bed1905be27bd5a03e47d"
             ],
             "version": "==4.4.0"
+        },
+        "pipenv": {
+            "hashes": [
+                "sha256:ce6dbb305fb1f262dba0dcb50c06591e4d146f7bfe079cc9f0ce3f89c7516ae9"
+            ],
+            "version": "==10.1.2"
         },
         "protobuf": {
             "hashes": [
@@ -92,6 +126,13 @@
                 "sha256:e64193f0047ad603b71f202332ab5527c5e52aa7c8b609704fc28c0dc20c4365"
             ],
             "version": "==0.5.2"
+        },
+        "requests": {
+            "hashes": [
+                "sha256:6a1b267aa90cac58ac3a765d067950e7dbbf75b1da07e895d1f594193a40a38b",
+                "sha256:9c443e7324ba5b85070c4a818ade28bfabedf16ea10206da1132edaa6dda237e"
+            ],
+            "version": "==2.18.4"
         },
         "requirements": {
             "editable": true,
@@ -115,6 +156,26 @@
                 "sha256:b7f6c09155321169af03f9fb20dc15a4a0c7481e7c334a5ba8f7f0d864633209"
             ],
             "version": "==0.10.0"
+        },
+        "urllib3": {
+            "hashes": [
+                "sha256:06330f386d6e4b195fbfc736b297f58c5a892e4440e54d294d7004e3a9bbea1b",
+                "sha256:cc44da8e1145637334317feebd728bd869a35285b93cbb4cca2577da7e62db4f"
+            ],
+            "version": "==1.22"
+        },
+        "virtualenv": {
+            "hashes": [
+                "sha256:39d88b533b422825d644087a21e78c45cf5af0ef7a99a1fc9fbb7b481e5c85b0",
+                "sha256:02f8102c2436bb03b3ee6dede1919d1dac8a427541652e5ec95171ec8adbc93a"
+            ],
+            "version": "==15.1.0"
+        },
+        "virtualenv-clone": {
+            "hashes": [
+                "sha256:6b3be5cab59e455f08c9eda573d23006b7d6fb41fae974ddaa2b275c93cc4405"
+            ],
+            "version": "==0.2.6"
         }
     },
     "develop": {

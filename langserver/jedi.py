@@ -1,34 +1,8 @@
-from os import path as filepath
-import os
 
 import jedi
 import jedi._compatibility
 
 import opentracing
-from typing import List
-
-from .fs import RemoteFileSystem, TestFileSystem
-
-
-class Module:
-    def __init__(self, name, path, is_package=False):
-        self.name = name
-        self.path = path
-        self.is_package = is_package
-
-    def __repr__(self):
-        return "PythonModule({}, {})".format(self.name, self.path)
-
-
-class DummyFile:
-    def __init__(self, contents):
-        self.contents = contents
-
-    def read(self):
-        return self.contents
-
-    def close(self):
-        pass
 
 
 class RemoteJedi:
@@ -54,125 +28,16 @@ class RemoteJedi:
     def _new_script_impl(self, parent_span, *args, **kwargs):
         path = kwargs.get("path")
 
-        trace = False
         if 'trace' in kwargs:
-            trace = True
             del kwargs['trace']
 
-        def find_module_remote(string, dir=None, fullname=None):
-            """A swap-in replacement for Jedi's find module function that uses
-            the remote fs to resolve module imports."""
-            if dir is None:
-                dir = get_module_search_paths(string, path)
-            with opentracing.start_child_span(
-                    parent_span,
-                    "find_module_remote_callback") as find_module_span:
-                if trace:
-                    print("find_module_remote", string, dir, fullname)
+        if self.workspace is not None:
+            path = self.workspace.to_cache_path(path)
+            venv_path = self.workspace.VENV_LOCATION
 
-                the_module = None
-
-                # TODO: move this bit of logic into the Workspace?
-                # default behavior is to search for built-ins first, but skip
-                # this if we're actually in the stdlib repo
-                if fullname and not self.workspace.is_stdlib:
-                    the_module = self.workspace.find_stdlib_module(fullname)
-
-                if the_module == "native":  # break if we get a native module
-                    raise ImportError(
-                        'Module "{}" not found in {}', string, dir)
-
-                # TODO: use this clause's logic for the other clauses too
-                # (stdlib and external modules) after searching for built-ins,
-                # search the current project
-                if not the_module:
-                    module_file, module_path, is_package = self.workspace.find_internal_module(
-                        string, fullname, dir)
-                    if module_file or module_path:
-                        if is_package and module_path.endswith(".py"):
-                            module_path = os.path.dirname(module_path)
-                        return module_file, module_path, is_package
-
-                # finally, search 3rd party dependencies
-                if not the_module:
-                    the_module = self.workspace.find_external_module(fullname)
-
-                if not the_module:
-                    raise ImportError(
-                        'Module "{}" not found in {}', string, dir)
-
-                is_package = the_module.is_package
-                module_file = self.workspace.open_module_file(
-                    the_module, find_module_span)
-                module_path = the_module.path
-                if is_package and the_module.is_namespace_package:
-                    module_path = jedi._compatibility.ImplicitNSInfo(
-                        fullname, [module_path])
-                    is_package = False
-                elif is_package and module_path.endswith(".py"):
-                    module_path = filepath.dirname(module_path)
-                return module_file, module_path, is_package
-
-        # TODO: update this to use the workspace's module indices
-        def list_modules() -> List[str]:
-            if trace:
-                print("list_modules")
-            modules = [
-                f for f in self.fs.walk(self.root_path)
-                if f.lower().endswith(".py")
-            ]
-            return modules
-
-        def load_source(path) -> str:
-            with opentracing.start_child_span(
-                    parent_span, "load_source_callback") as load_source_span:
-                load_source_span.set_tag("path", path)
-                if trace:
-                    print("load_source", path)
-                result = self.fs.open(path, load_source_span)
-                return result
-
-        # TODO(keegan) It shouldn't matter if we are using a remote fs or not.
-        # Consider other ways to hook into the import system.
-        # TODO(aaron) Also, it shouldn't matter whether we're using a "real"
-        # filesystem or our test harness filesystem
-        if isinstance(self.fs, RemoteFileSystem) or isinstance(
-                self.fs, TestFileSystem):
             kwargs.update(
-                find_module=find_module_remote,
-                list_modules=list_modules,
-                load_source=load_source,
-                fs=self.fs
+                venv_path=venv_path,
+                path=path
             )
 
         return jedi.api.Script(*args, **kwargs)
-
-
-def get_module_search_paths(module_name, script_file_path):
-    """Provides an ordered list of directories in the workspace to search for
-    the given 'module_name', starting from the directory that the script is
-    operating on.
-
-    This mimics Jedi's modifications of sys.path that it uses during module resolution.
-    See:
-    https://sourcegraph.com/github.com/sourcegraph/jedi/-/blob/jedi/evaluate/imports.py#L237:9
-
-    Note that this does not handle some corner cases, see:
-    https://www.python.org/dev/peps/pep-0235/
-    """
-    for parent in traverse_parents(script_file_path):
-        if os.path.basename(parent) == module_name:
-            yield parent
-
-
-def traverse_parents(path):
-    '''
-    Returns all parent directories for the given file path - Copied from:
-    https://sourcegraph.com/github.com/sourcegraph/jedi/-/blob/jedi/evaluate/sys_path.py#L228:5
-    '''
-    while True:
-        new = os.path.dirname(path)
-        if new == path:
-            return
-        path = new
-        yield path

@@ -15,6 +15,7 @@ from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
+from .clone_workspace import CloneWorkspace
 
 log = logging.getLogger(__name__)
 
@@ -197,8 +198,8 @@ class LangServer:
 
         self.fs = fs
         self.streaming = False
-        self.workspace = Workspace(self.fs, self.root_path,
-                                   params["originalRootPath"])
+        self.workspace = CloneWorkspace(self.fs, self.root_path,
+                                        params["originalRootPath"])
 
         return {
             "capabilities": {
@@ -658,7 +659,7 @@ class LangServer:
         return [s.json_object() for s in extract_symbols(source, path)]
 
     def serve_x_packages(self, request):
-        return self.workspace.get_package_information(request["span"])
+        return self.workspace.get_package_information()
 
     def serve_x_dependencies(self, request):
         return self.workspace.get_dependencies(request["span"])

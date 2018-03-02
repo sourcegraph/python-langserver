@@ -7,11 +7,12 @@ name = "pypi"
 
 [packages]
 
-jedi = {git = "git://github.com/sourcegraph/jedi.git", editable = true, ref = "9a3e7256df2e6099207fd7289141885ec17ebec7"}
 requirements = {git = "git://github.com/sourcegraph/requirements-parser.git", editable = true, ref = "69f1a9cb916b2995843c3ea9b988da46c9dd65c7"}
 opentracing = "*"
 lightstep = "*"
 "delegator.py" = "*"
+pipenv = "*"
+jedi = {git = "git://github.com/sourcegraph/jedi.git", editable = true, ref = "dee138a06ce5568bfda1f88d77184223c5cf5b8d"}
 
 
 [dev-packages]
