@@ -522,13 +522,14 @@ class LangServer:
         self.conn.send_notification(
             "$/partialResult", partial_initializer) if self.streaming else None
         json_patch = []
-        package_cache_path = os.path.abspath(self.workspace.PACKAGES_PATH)
+        # package_cache_path = os.path.abspath(self.workspace.PACKAGES_PATH)
         for u in usages:
+            u.module_path = self.workspace.from_cache_path(u.module_path)
             if u.is_definition():
                 continue
             # filter out any results from files that are cached on the local fs
-            if u.module_path.startswith(package_cache_path):
-                continue
+            # if u.module_path.startswith(package_cache_path):
+            #     continue
             if u.module_path.startswith(self.workspace.PYTHON_PATH):
                 continue
             location = {

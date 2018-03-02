@@ -37,8 +37,8 @@ class CloneWorkspace:
 
         # TODO: allow different Python versions per project/workspace
         self.PYTHON_PATH = GlobalConfig.PYTHON_PATH
-        self.CLONED_PROJECT_PATH = os.path.join(
-            GlobalConfig.CLONED_PROJECT_PATH, self.key)
+        self.CLONED_PROJECT_PATH = os.path.abspath(os.path.join(
+            GlobalConfig.CLONED_PROJECT_PATH, self.key))
         log.debug("Setting Python path to %s", self.PYTHON_PATH)
         log.debug("Setting Cloned Project path to %s",
                   self.CLONED_PROJECT_PATH)
@@ -79,6 +79,18 @@ class CloneWorkspace:
         file_path = os.path.relpath(project_path, "/")
 
         return os.path.join(self.CLONED_PROJECT_PATH, file_path)
+
+    def from_cache_path(self, cache_path):
+        """
+        Translates a path in the cache to the equivalent path in
+        the project.
+
+        e.x.: 'python-cloned-projects-cache/project_name/a/b.py' -> '/a/b.py'
+        """
+        file_path = os.path.relpath(cache_path, self.CLONED_PROJECT_PATH)
+        if not file_path.startswith("/"):
+            file_path = "/" + file_path
+        return file_path
 
     def ensure_venv_created(self):
         '''

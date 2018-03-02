@@ -9,7 +9,6 @@ def test_data():
     repoPath = "repos/fizzbuzz_service"
     workspace = CloneWorkspace(TestFileSystem(repoPath), repoPath, repoPath)
     yield (workspace, repoPath)
-    workspace.cleanup()
 
 
 class TestCloningWorkspace:
