@@ -32,7 +32,7 @@ class RemoteJedi:
             del kwargs['trace']
 
         if self.workspace is not None:
-            path = self.workspace.to_cache_path(path)
+            path = self.workspace.project_to_cache_path(path)
             venv_path = self.workspace.VENV_LOCATION
 
             kwargs.update(

@@ -15,7 +15,7 @@ from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
-from .clone_workspace import CloneWorkspace
+from .clone_workspace import CloneWorkspace, ModuleKind
 
 log = logging.getLogger(__name__)
 
@@ -354,63 +354,61 @@ class LangServer:
             return results
 
         for d in defs:
-            defining_module_path = d.module_path
-            defining_module = self.workspace.get_module_by_path(
-                defining_module_path)
+            kind, module_path = ModuleKind.UNKNOWN, ""
+            if d.module_path:
+                kind, module_path = self.workspace.get_module_info(
+                    d.module_path)
 
-            if not defining_module and (not d.is_definition() or
-                                        d.line is None or d.column is None):
+            if (not d.is_definition() or
+                    d.line is None or d.column is None):
                 continue
 
             symbol_locator = {"symbol": None, "location": None}
 
-            if defining_module and not defining_module.is_stdlib:
-                # the module path doesn't map onto the repository structure
-                # because we're not fully installing
-                # dependency packages, so don't include it in the symbol
-                # descriptor
-                filename = os.path.basename(defining_module_path)
-                symbol_name = ""
-                symbol_kind = ""
-                if d.description:
-                    symbol_name, symbol_kind = LangServer.name_and_kind(
-                        d.description)
-                symbol_locator["symbol"] = {
-                    "package": {
-                        "name": defining_module.qualified_name.split(".")[0],
-                    },
-                    "name": symbol_name,
-                    "container": defining_module.qualified_name,
-                    "kind": symbol_kind,
-                    "file": filename
-                }
-
-            elif defining_module and defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path,
-                                           self.workspace.PYTHON_PATH)
-                filename = os.path.basename(defining_module_path)
-                symbol_name = ""
-                symbol_kind = ""
-                if d.description:
-                    symbol_name, symbol_kind = LangServer.name_and_kind(
-                        d.description)
-                symbol_locator["symbol"] = {
-                    "package": {
-                        "name": "cpython",
-                    },
-                    "name": symbol_name,
-                    "container": defining_module.qualified_name,
-                    "kind": symbol_kind,
-                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH,
-                                         rel_path),
-                    "file": filename
-                }
+            if kind is not ModuleKind.UNKNOWN:
+                if kind == ModuleKind.STANDARD_LIBRARY:
+                    filename = module_path.name
+                    symbol_name = ""
+                    symbol_kind = ""
+                    if d.description:
+                        symbol_name, symbol_kind = LangServer.name_and_kind(
+                            d.description)
+                    symbol_locator["symbol"] = {
+                        "package": {
+                            "name": "cpython",
+                        },
+                        "name": symbol_name,
+                        "container": d.full_name,
+                        "kind": symbol_kind,
+                        "path": str(GlobalConfig.STDLIB_SRC_PATH / module_path),
+                        "file": filename
+                    }
+                else:
+                    # the module path doesn't map onto the repository structure
+                    # because we're not fully installing
+                    # dependency packages, so don't include it in the symbol
+                    # descriptor
+                    filename = module_path.name
+                    symbol_name = ""
+                    symbol_kind = ""
+                    if d.description:
+                        symbol_name, symbol_kind = LangServer.name_and_kind(
+                            d.description)
+                    symbol_locator["symbol"] = {
+                        "package": {
+                            "name": d.full_name.split(".")[0],
+                        },
+                        "name": symbol_name,
+                        "container": d.full_name,
+                        "kind": symbol_kind,
+                        "file": filename
+                    }
 
             if (d.is_definition() and
                     d.line is not None and d.column is not None):
                 location = {
                     # TODO(renfred) determine why d.module_path is empty.
-                    "uri": "file://" + (d.module_path or path),
+                    "uri": "file://" + (str(module_path) or path),
                     "range": {
                         "start": {
                             "line": d.line - 1,
@@ -429,7 +427,7 @@ class LangServer:
                         "start"]
 
                 # set the full location if the definition is in this workspace
-                if not defining_module or not defining_module.is_external:
+                if not kind in [ModuleKind.UNKNOWN, ModuleKind.EXTERNAL_DEPENDENCY]:
                     symbol_locator["location"] = location
 
             results.append(symbol_locator)

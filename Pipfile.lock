@@ -139,11 +139,6 @@
             "git": "git://github.com/sourcegraph/requirements-parser.git",
             "ref": "69f1a9cb916b2995843c3ea9b988da46c9dd65c7"
         },
-        "requirements-parser": {
-            "editable": true,
-            "git": "git://github.com/sourcegraph/requirements-parser.git",
-            "ref": "69f1a9cb916b2995843c3ea9b988da46c9dd65c7"
-        },
         "six": {
             "hashes": [
                 "sha256:832dc0e10feb1aa2c68dcc57dbb658f1c7e65b9b61af69048abc87a2db00a0eb",

@@ -6,6 +6,9 @@ from .fs import FileSystem
 from shutil import rmtree
 import delegator
 import json
+from functools import lru_cache
+from enum import Enum
+import pathlib
 
 log = logging.getLogger(__name__)
 
@@ -15,6 +18,7 @@ class CloneWorkspace:
     def __init__(self, fs: FileSystem, project_root: str,
                  original_root_path: str= ""):
 
+        self.fs = fs
         self.PROJECT_ROOT = project_root
         self.repo = None
         self.hash = None
@@ -35,40 +39,39 @@ class CloneWorkspace:
         if self.hash:
             self.key = ".".join((self.key, self.hash))
 
-        # TODO: allow different Python versions per project/workspace
-        self.PYTHON_PATH = GlobalConfig.PYTHON_PATH
+        self.PYTHON_PATH = os.path.abspath(GlobalConfig.PYTHON_PATH)
         self.CLONED_PROJECT_PATH = os.path.abspath(os.path.join(
             GlobalConfig.CLONED_PROJECT_PATH, self.key))
+
         log.debug("Setting Python path to %s", self.PYTHON_PATH)
         log.debug("Setting Cloned Project path to %s",
                   self.CLONED_PROJECT_PATH)
-
-        self.fs = fs
 
         # Clone the project from the provided filesystem into the local
         # cache
         all_files = self.fs.walk(self.PROJECT_ROOT)
         for file_path in all_files:
-            cache_file_path = self.to_cache_path(file_path)
-            if os.path.exists(cache_file_path):
-                continue
+            cache_file_path = self.project_to_cache_path(file_path)
 
             os.makedirs(os.path.dirname(cache_file_path), exist_ok=True)
             file_contents = self.fs.open(file_path)
             with open(cache_file_path, "w") as f:
                 f.write(file_contents)
 
+    @property
+    @lru_cache()
+    def VENV_LOCATION(self):
         self.ensure_venv_created()
-        self.VENV_LOCATION = self.run_command("pipenv --venv").out
+        return self.run_command("pipenv --venv").out.rstrip()
 
     def cleanup(self):
-        log.info("Removing project's virtual emvironment %s", self.VENV_LOCATION)
+        log.info("Removing project's virtual environment %s", self.VENV_LOCATION)
         self.remove_venv()
 
         log.info("Removing cloned project cache %s", self.CLONED_PROJECT_PATH)
         rmtree(self.CLONED_PROJECT_PATH, ignore_errors=True)
 
-    def to_cache_path(self, project_path):
+    def project_to_cache_path(self, project_path):
         """
         Translates a path from the root of the project to the equivalent path in
         the local cache.
@@ -80,7 +83,7 @@ class CloneWorkspace:
 
         return os.path.join(self.CLONED_PROJECT_PATH, file_path)
 
-    def from_cache_path(self, cache_path):
+    def cache_path_to_project_path(self, cache_path):
         """
         Translates a path in the cache to the equivalent path in
         the project.
@@ -100,7 +103,37 @@ class CloneWorkspace:
         self.run_command("true")
 
     def remove_venv(self):
-        self.run_command("pipenv --rm")
+        self.run_command("pipenv --rm", no_prefix=True)
+
+    def get_module_info(self, raw_module_path):
+        module_path = pathlib.Path(raw_module_path)
+
+        import pdb
+        pdb.set_trace()
+
+        sys_std_lib_path = pathlib.Path(self.PYTHON_PATH)
+        if sys_std_lib_path in module_path.parents:
+            return (ModuleKind.STANDARD_LIBRARY, path.relative_to(sys_std_lib_path))
+
+        venv_path = pathlib.Path(self.VENV_LOCATION) / "lib"
+        if venv_path in module_path.parents:
+            # The python libraries in a venv are stored under
+            # VENV_LOCATION/lib/(some_python_version)
+
+            python_version = module_path.relative_to(venv_path).parts[0]
+
+            venv_lib_path = venv_path / python_version
+            venv_ext_packages_path = venv_lib_path / "site-packages"
+
+            if venv_ext_packages_path in module_path.parents:
+                return (ModuleKind.EXTERNAL_DEPENDENCY, module_path.relative_to(venv_ext_packages_path))
+            return (ModuleKind.STANDARD_LIBRARY, module_path.relative_to(venv_lib_path))
+
+        project_path = pathlib.Path(self.CLONED_PROJECT_PATH)
+        if project_path in module_path.parents:
+            return (ModuleKind.PROJECT, module_path.relative_to(project_path))
+
+        return (ModuleKind.UNKNOWN, module_path)
 
     def get_package_information(self):
         project_packages = self.project_packages()
@@ -116,6 +149,7 @@ class CloneWorkspace:
             })
         return out
 
+    @lru_cache()
     def project_packages(self):
         '''
         Provides a list of all packages declared in the project
@@ -150,11 +184,11 @@ class CloneWorkspace:
         for dep in deps:
             dep_name = dep["name"]
             if dep_name not in set(["pip", "wheel"]):
-                out.append({"attributes": {"name": dep["name"]}})
+                out.append({"attributes": {"name": dep_name}})
 
         return out
 
-    def run_command(self, command, **kwargs):
+    def run_command(self, command, no_prefix=False, **kwargs):
         '''
         Runs the given command inside the context
         of the project:
@@ -167,9 +201,17 @@ class CloneWorkspace:
         kwargs["cwd"] = self.CLONED_PROJECT_PATH
 
         # add pipenv prefix
-        if type(command) is str:
-            command = "pipenv run {}".format(command)
-        else:
-            command = ["pipenv", "run"].append(command)
+        if not no_prefix:
+            if type(command) is str:
+                command = "pipenv run {}".format(command)
+            else:
+                command = ["pipenv", "run"].append(command)
 
         return delegator.run(command, **kwargs)
+
+
+class ModuleKind(Enum):
+    PROJECT = 1
+    STANDARD_LIBRARY = 2
+    EXTERNAL_DEPENDENCY = 3
+    UNKNOWN = 4
