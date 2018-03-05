@@ -1,12 +1,13 @@
-import distutils
+from distutils.sysconfig import get_python_lib
+from pathlib import Path
 
 
 class GlobalConfig:
 
     # TODO: allow different Python stdlib versions per workspace?
 
-    PYTHON_PATH = distutils.sysconfig.get_python_lib(standard_lib=True)
-    PACKAGES_PARENT = "python-langserver-cache"
-    CLONED_PROJECT_PATH = "python-cloned-projects-cache"
+    PYTHON_PATH = Path(get_python_lib(standard_lib=True)).absolute()
+    PACKAGES_PARENT = Path("python-langserver-cache").absolute()
+    CLONED_PROJECT_PATH = Path("python-cloned-projects-cache").absolute()
     STDLIB_REPO_URL = "git://github.com/python/cpython"
-    STDLIB_SRC_PATH = "Lib"
+    STDLIB_SRC_PATH = Path("Lib")

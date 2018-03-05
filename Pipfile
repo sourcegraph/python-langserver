@@ -12,7 +12,7 @@ opentracing = "*"
 lightstep = "*"
 "delegator.py" = "*"
 pipenv = "*"
-jedi = {git = "git://github.com/sourcegraph/jedi.git", editable = true, ref = "dee138a06ce5568bfda1f88d77184223c5cf5b8d"}
+jedi = {git = "git://github.com/davidhalter/jedi.git", editable = true, ref = "3c9aa9ef254dbf1aa5f55ed3a4ed9ec4c6d0bb5a"}
 
 
 [dev-packages]

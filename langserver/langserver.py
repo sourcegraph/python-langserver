@@ -368,6 +368,7 @@ class LangServer:
             if kind is not ModuleKind.UNKNOWN:
                 if kind == ModuleKind.STANDARD_LIBRARY:
                     filename = module_path.name
+                    module_path = GlobalConfig.STDLIB_SRC_PATH / module_path
                     symbol_name = ""
                     symbol_kind = ""
                     if d.description:
@@ -380,7 +381,7 @@ class LangServer:
                         "name": symbol_name,
                         "container": d.full_name,
                         "kind": symbol_kind,
-                        "path": str(GlobalConfig.STDLIB_SRC_PATH / module_path),
+                        "path": str(module_path),
                         "file": filename
                     }
                 else:
