@@ -164,8 +164,14 @@ class LangServer:
             self.fs = LocalFileSystem()
 
         pip_args = []
-        if "initializationOptions" in params and "pipArgs" in params["initializationOptions"]:
-            pip_args = params["initializationOptions"]["pipArgs"]
+        if "initializationOptions" in params:
+            initOps = params["initializationOptions"]
+            if isinstance(initOps, dict) and "pipArgs" in initOps:
+                p = initOps["pipArgs"]
+                if isinstance(p, list):
+                    pip_args = p
+                else:
+                    log.error("pipArgs (%s) found, but was not a list, so ignoring", str(p))
 
         # Sourcegraph also passes in a rootUri which has commit information
         originalRootUri = params.get("originalRootUri") or params.get(
