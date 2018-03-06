@@ -690,7 +690,7 @@ def main():
     parser.add_argument(
         "--addr", default=4389, help="server listen (tcp)", type=int)
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--lightstep_token")
+    parser.add_argument("--lightstep_token", default=os.environ.get("LIGHTSTEP_ACCESS_TOKEN"))
     parser.add_argument("--python_path")
 
     args = parser.parse_args()
