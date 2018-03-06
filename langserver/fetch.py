@@ -7,10 +7,12 @@ import logging
 import pip
 import pip.status_codes
 
+from typing import List
+
 log = logging.getLogger(__name__)
 
 
-def fetch_dependency(module_name: str, specifier: str, install_path: str):
+def fetch_dependency(module_name: str, specifier: str, install_path: str, pip_args: List[str]):
     """Shells out to PIP in order to download and unzip the named package into
     the specified path. This method only runs `pip download`, NOT `pip
     install`, so it's presumably safe.
@@ -24,13 +26,11 @@ def fetch_dependency(module_name: str, specifier: str, install_path: str):
                  module_name, download_folder, exc_info=True)
         # TODO: check the result status
 
-        index_url = os.environ.get('INDEX_URL')
-        if index_url is not None:
-            result = pip.main(["download", "--no-deps", "-i", index_url,
-                               "-d", download_folder, module_name + specifier])
-        else:
-            result = pip.main(["download", "--no-deps", "-d",
-                               download_folder, module_name + specifier])
+        result = pip.main(
+            ["download", "--no-deps", "-d", download_folder] +
+            pip_args +
+            [module_name + specifier]
+        )
         if result != pip.status_codes.SUCCESS:
             log.error("Unable to fetch package %s", module_name)
             return
