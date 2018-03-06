@@ -11,7 +11,7 @@ from typing import List
 
 log = logging.getLogger(__name__)
 
-# NEXT: pass in args here, instead of relying on environment vars
+
 def fetch_dependency(module_name: str, specifier: str, install_path: str, pip_args: List[str]):
     """Shells out to PIP in order to download and unzip the named package into
     the specified path. This method only runs `pip download`, NOT `pip
@@ -26,7 +26,11 @@ def fetch_dependency(module_name: str, specifier: str, install_path: str, pip_ar
                  module_name, download_folder, exc_info=True)
         # TODO: check the result status
 
-        result = pip.main(["download", "--no-deps", "-d", download_folder] + pip_args + [module_name + specifier])
+        result = pip.main(
+            ["download", "--no-deps", "-d", download_folder] +
+            pip_args +
+            [module_name + specifier]
+        )
         if result != pip.status_codes.SUCCESS:
             log.error("Unable to fetch package %s", module_name)
             return
