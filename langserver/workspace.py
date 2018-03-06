@@ -55,8 +55,9 @@ class Module:
 class Workspace:
 
     def __init__(self, fs: FileSystem, project_root: str,
-                 original_root_path: str= ""):
+                 original_root_path: str= "", pip_args: List[str]=[]):
 
+        self.pip_args = pip_args
         self.project_packages = set()
         self.PROJECT_ROOT = project_root
         self.repo = None
@@ -300,7 +301,7 @@ class Workspace:
             self.indexing_lock.acquire()
             self.fetched.add(package_name)
             specifier = self.get_ext_pkg_version_specifier(package_name)
-            fetch_dependency(package_name, specifier, self.PACKAGES_PATH)
+            fetch_dependency(package_name, specifier, self.PACKAGES_PATH, self.pip_args)
             self.index_external_modules()
             self.indexing_lock.release()
         the_module = self.dependencies.get(qualified_name, None)

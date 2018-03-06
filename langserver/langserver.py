@@ -151,28 +151,8 @@ class LangServer:
                                           "Script.usages"):
             return script.usages()
 
-    def setenv_from_initialization_options(self, params):
-        '''Sets environment variables from initializationOptions. This sets
-        environment variables for the entire process. In the future, this
-        might be modified to manage environment variables per workspace.'''
-
-        if "initializationOptions" not in params:
-            return
-        initOptions = params["initializationOptions"]
-        if not isinstance(initOptions, dict):
-            return
-        if "env" not in initOptions:
-            return
-        envVars = initOptions["env"]
-        if not isinstance(envVars, dict):
-            return
-        for k, v in envVars.items():
-            os.environ[k] = v
-
     def serve_initialize(self, request):
         params = request["params"]
-        self.setenv_from_initialization_options(params)
-
         self.root_path = path_from_uri(
             params.get("rootUri") or params.get("rootPath") or "")
 
@@ -183,10 +163,14 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
+        pip_args = []
+        if "initializationOptions" in params and "pipArgs" in params["initializationOptions"]:
+            pip_args = params["initializationOptions"]["pipArgs"]
+
         # Sourcegraph also passes in a rootUri which has commit information
         originalRootUri = params.get("originalRootUri") or params.get(
             "originalRootPath") or ""
-        self.workspace = Workspace(self.fs, self.root_path, originalRootUri)
+        self.workspace = Workspace(self.fs, self.root_path, originalRootUri, pip_args)
 
         return {
             "capabilities": {
