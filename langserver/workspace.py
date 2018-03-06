@@ -322,7 +322,7 @@ class Workspace:
         pkg_specifiers_map = {}
         try:
             pkg_specifiers_map = parse_requirements(
-                "requirements.txt", self.fs)
+                "/requirements.txt", self.fs)
         except (FileException, FileNotFoundError) as e:
             log.warning(
                 "error parsing requirements file for {}, err: {}".format(
