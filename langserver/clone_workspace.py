@@ -97,7 +97,7 @@ class CloneWorkspace:
         Translates a path from the root of the project to the equivalent path in
         the local cache.
 
-        e.x.: '/a/b.py' -> 'python-cloned-projects-cache/project_name/a/b.py'
+        e.x.: '/a/b.py' -> '/python-cloned-projects-cache/project_name/a/b.py'
         """
         # strip the leading '/' so that we can join it properly
         file_path = project_path
