@@ -109,6 +109,9 @@ class CloneWorkspace:
     @property
     @lru_cache()
     def VENV_PATH(self):
+        """
+        The absolute path of the virtual environment created for this workspace.
+        """
         self.ensure_venv_created()
         venv_path = self.run_command("pipenv --venv").out.rstrip()
         return Path(venv_path)
