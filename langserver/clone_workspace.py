@@ -1,6 +1,4 @@
 import logging
-import os
-import os.path
 from .config import GlobalConfig
 from .fs import FileSystem
 from shutil import rmtree
@@ -47,7 +45,7 @@ class CloneWorkspace:
         # cache
         for file_path in self.fs.walk(str(self.PROJECT_ROOT)):
 
-            cache_file_path = self.CLONED_PROJECT_PATH / file_path.lstrip("/")
+            cache_file_path = self.project_to_cache_path(file_path)
 
             cache_file_path.parent.mkdir(parents=True, exist_ok=True)
             file_contents = self.fs.open(file_path)
@@ -98,12 +96,9 @@ class CloneWorkspace:
 
         e.x.: '/a/b.py' -> '/python-cloned-projects-cache/project_name/a/b.py'
         """
-        # strip the leading '/' so that we can join it properly
-        file_path = project_path
-        if file_path.startswith("/"):
-            file_path = file_path[1:]
 
-        return os.path.join(self.CLONED_PROJECT_PATH, file_path)
+        # strip the leading '/' so that we can join it properly
+        return self.CLONED_PROJECT_PATH / project_path.lstrip("/")
 
     @property
     @lru_cache()
