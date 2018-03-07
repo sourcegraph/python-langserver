@@ -172,12 +172,16 @@ class LangServer:
                 if isinstance(p, list):
                     pip_args = p
                 else:
-                    log.error("pipArgs (%s) found, but was not a list, so ignoring", str(p))
+                    log.error(
+                        "pipArgs (%s) found, but was not a list, so ignoring", str(p))
 
         # Sourcegraph also passes in a rootUri which has commit information
         originalRootUri = params.get("originalRootUri") or params.get(
             "originalRootPath") or ""
-        self.workspace = Workspace(self.fs, self.root_path, originalRootUri, pip_args)
+        # self.workspace = Workspace(
+        #     self.fs, self.root_path, originalRootUri, pip_args)
+        self.workspace = CloneWorkspace(
+            self.fs, self.root_path, originalRootUri)
 
         return {
             "capabilities": {
@@ -354,83 +358,39 @@ class LangServer:
             return results
 
         for d in defs:
-            kind, module_path = ModuleKind.UNKNOWN, ""
-            if d.module_path:
-                kind, module_path = self.workspace.get_module_info(
-                    d.module_path)
+            # TODO: handle case where a def doesn't have a module_path
+            if not d.module_path:
+                continue
+
+            module_kind, rel_module_path = self.workspace.get_module_info(
+                d.module_path)
+
+            if module_kind != ModuleKind.PROJECT:
+                # only handle internal defs for now
+                continue
 
             if (not d.is_definition() or
                     d.line is None or d.column is None):
                 continue
 
-            symbol_locator = {"symbol": None, "location": None}
+            location = {
+                # put a "/" shim at the front to make the path
+                # seem like an absolute one inside the project
+                "uri": "file://" + str("/" / rel_module_path),
 
-            if kind is not ModuleKind.UNKNOWN:
-                if kind == ModuleKind.STANDARD_LIBRARY:
-                    filename = module_path.name
-                    module_path = GlobalConfig.STDLIB_SRC_PATH / module_path
-                    symbol_name = ""
-                    symbol_kind = ""
-                    if d.description:
-                        symbol_name, symbol_kind = LangServer.name_and_kind(
-                            d.description)
-                    symbol_locator["symbol"] = {
-                        "package": {
-                            "name": "cpython",
-                        },
-                        "name": symbol_name,
-                        "container": d.full_name,
-                        "kind": symbol_kind,
-                        "path": str(module_path),
-                        "file": filename
-                    }
-                else:
-                    # the module path doesn't map onto the repository structure
-                    # because we're not fully installing
-                    # dependency packages, so don't include it in the symbol
-                    # descriptor
-                    filename = module_path.name
-                    symbol_name = ""
-                    symbol_kind = ""
-                    if d.description:
-                        symbol_name, symbol_kind = LangServer.name_and_kind(
-                            d.description)
-                    symbol_locator["symbol"] = {
-                        "package": {
-                            "name": d.full_name.split(".")[0],
-                        },
-                        "name": symbol_name,
-                        "container": d.full_name,
-                        "kind": symbol_kind,
-                        "file": filename
-                    }
-
-            if (d.is_definition() and
-                    d.line is not None and d.column is not None):
-                location = {
-                    # TODO(renfred) determine why d.module_path is empty.
-                    "uri": "file://" + (str(module_path) or path),
-                    "range": {
-                        "start": {
-                            "line": d.line - 1,
-                            "character": d.column,
-                        },
-                        "end": {
-                            "line": d.line - 1,
-                            "character": d.column + len(d.name),
-                        },
+                "range": {
+                    "start": {
+                        "line": d.line - 1,
+                        "character": d.column,
                     },
-                }
-                # add a position hint in case this eventually gets passed to an
-                # operation that could use it
-                if symbol_locator["symbol"]:
-                    symbol_locator["symbol"]["position"] = location["range"][
-                        "start"]
+                    "end": {
+                        "line": d.line - 1,
+                        "character": d.column + len(d.name),
+                    },
+                },
+            }
 
-                # set the full location if the definition is in this workspace
-                if not kind in [ModuleKind.UNKNOWN, ModuleKind.EXTERNAL_DEPENDENCY]:
-                    symbol_locator["location"] = location
-
+            symbol_locator = {"symbol": None, "location": location}
             results.append(symbol_locator)
 
         unique_results = []
@@ -701,7 +661,8 @@ def main():
     parser.add_argument(
         "--addr", default=4389, help="server listen (tcp)", type=int)
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--lightstep_token", default=os.environ.get("LIGHTSTEP_ACCESS_TOKEN"))
+    parser.add_argument("--lightstep_token",
+                        default=os.environ.get("LIGHTSTEP_ACCESS_TOKEN"))
     parser.add_argument("--python_path")
 
     args = parser.parse_args()
