@@ -76,21 +76,11 @@ class CloneWorkspace:
         e.x.: '/a/b.py' -> 'python-cloned-projects-cache/project_name/a/b.py'
         """
         # strip the leading '/' so that we can join it properly
-        file_path = os.path.relpath(project_path, "/")
+        file_path = project_path
+        if file_path.startswith("/"):
+            file_path = file_path[1:]
 
         return os.path.join(self.CLONED_PROJECT_PATH, file_path)
-
-    def cache_path_to_project_path(self, cache_path):
-        """
-        Translates a path in the cache to the equivalent path in
-        the project.
-
-        e.x.: 'python-cloned-projects-cache/project_name/a/b.py' -> '/a/b.py'
-        """
-        file_path = os.path.relpath(cache_path, self.CLONED_PROJECT_PATH)
-        if not file_path.startswith("/"):
-            file_path = "/" + file_path
-        return file_path
 
     def ensure_venv_created(self):
         '''
