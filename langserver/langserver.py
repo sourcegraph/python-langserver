@@ -11,7 +11,7 @@ from .config import GlobalConfig
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .workspace import Workspace
+# from .workspace import Workspace
 from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
