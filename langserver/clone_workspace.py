@@ -92,59 +92,6 @@ class CloneWorkspace:
 
         return (ModuleKind.UNKNOWN, module_path)
 
-    def get_package_information(self):
-        project_packages = self.project_packages()
-        dependencies = self.external_dependencies()
-
-        out = []
-        for package in project_packages:
-            out.append({
-                "package": {
-                    "name": package
-                },
-                "dependencies": dependencies
-            })
-        return out
-
-    @lru_cache()
-    def project_packages(self):
-        '''
-        Provides a list of all packages declared in the project
-        '''
-        script = [
-            "import json",
-            "import setuptools",
-            "pkgs = setuptools.find_packages()",
-            "print(json.dumps(pkgs))"
-        ]
-
-        c = self.run_command("python -c '{}'".format(";".join(script)))
-        return json.loads(c.out)
-
-    def external_dependencies(self):
-        '''
-        Provides a list of third party packages that the
-        project depends on.
-        '''
-        deps = json.loads(self.run_command(
-            "pip list --local --format json").out)
-        out = [
-            {
-                # TODO - is this ever not a dependency?
-                "attributes": {
-                    "name": "cpython",
-                    "repoURL": "git://github.com/python/cpython"
-                }
-            }
-        ]
-
-        for dep in deps:
-            dep_name = dep["name"]
-            if dep_name not in set(["pip", "wheel"]):
-                out.append({"attributes": {"name": dep_name}})
-
-        return out
-
     def project_to_cache_path(self, project_path):
         """
         Translates a path from the root of the project to the equivalent path in
