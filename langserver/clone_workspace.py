@@ -54,44 +54,6 @@ class CloneWorkspace:
             file_contents = self.fs.open(file_path)
             cache_file_path.write_text(file_contents)
 
-    @property
-    @lru_cache()
-    def VENV_PATH(self):
-        self.ensure_venv_created()
-        venv_path = self.run_command("pipenv --venv").out.rstrip()
-        return Path(venv_path)
-
-    def cleanup(self):
-        log.info("Removing project's virtual environment %s", self.VENV_PATH)
-        self.remove_venv()
-
-        log.info("Removing cloned project cache %s", self.CLONED_PROJECT_PATH)
-        rmtree(self.CLONED_PROJECT_PATH, ignore_errors=True)
-
-    def project_to_cache_path(self, project_path):
-        """
-        Translates a path from the root of the project to the equivalent path in
-        the local cache.
-
-        e.x.: '/a/b.py' -> 'python-cloned-projects-cache/project_name/a/b.py'
-        """
-        # strip the leading '/' so that we can join it properly
-        file_path = project_path
-        if file_path.startswith("/"):
-            file_path = file_path[1:]
-
-        return os.path.join(self.CLONED_PROJECT_PATH, file_path)
-
-    def ensure_venv_created(self):
-        '''
-        This runs a noop pipenv command, which will
-        create the venv if it doesn't exist as a side effect.
-        '''
-        self.run_command("true")
-
-    def remove_venv(self):
-        self.run_command("pipenv --rm", no_prefix=True)
-
     def get_module_info(self, raw_jedi_module_path):
         """
         Given an absolute module path provided from jedi,
@@ -182,6 +144,44 @@ class CloneWorkspace:
                 out.append({"attributes": {"name": dep_name}})
 
         return out
+
+    def project_to_cache_path(self, project_path):
+        """
+        Translates a path from the root of the project to the equivalent path in
+        the local cache.
+
+        e.x.: '/a/b.py' -> 'python-cloned-projects-cache/project_name/a/b.py'
+        """
+        # strip the leading '/' so that we can join it properly
+        file_path = project_path
+        if file_path.startswith("/"):
+            file_path = file_path[1:]
+
+        return os.path.join(self.CLONED_PROJECT_PATH, file_path)
+
+    @property
+    @lru_cache()
+    def VENV_PATH(self):
+        self.ensure_venv_created()
+        venv_path = self.run_command("pipenv --venv").out.rstrip()
+        return Path(venv_path)
+
+    def cleanup(self):
+        log.info("Removing project's virtual environment %s", self.VENV_PATH)
+        self.remove_venv()
+
+        log.info("Removing cloned project cache %s", self.CLONED_PROJECT_PATH)
+        rmtree(self.CLONED_PROJECT_PATH, ignore_errors=True)
+
+    def ensure_venv_created(self):
+        '''
+        This runs a noop pipenv command, which will
+        create the venv if it doesn't exist as a side effect.
+        '''
+        self.run_command("true")
+
+    def remove_venv(self):
+        self.run_command("pipenv --rm", no_prefix=True)
 
     def run_command(self, command, no_prefix=False, **kwargs):
         '''
