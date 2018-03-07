@@ -62,7 +62,7 @@ class CloneWorkspace:
         return Path(venv_path)
 
     def cleanup(self):
-        log.info("Removing project's virtual environment %s", self.VENV_LOCATION)
+        log.info("Removing project's virtual environment %s", self.VENV_PATH)
         self.remove_venv()
 
         log.info("Removing cloned project cache %s", self.CLONED_PROJECT_PATH)
@@ -123,7 +123,7 @@ class CloneWorkspace:
         if GlobalConfig.PYTHON_PATH in module_path.parents:
             return (ModuleKind.STANDARD_LIBRARY, module_path.relative_to(GlobalConfig.PYTHON_PATH))
 
-        venv_path = self.VENV_LOCATION / "lib"
+        venv_path = self.VENV_PATH / "lib"
         if venv_path in module_path.parents:
             # The python libraries in a venv are stored under
             # VENV_LOCATION/lib/(some_python_version)
