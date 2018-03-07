@@ -102,14 +102,26 @@ class CloneWorkspace:
     def remove_venv(self):
         self.run_command("pipenv --rm", no_prefix=True)
 
-    def get_module_info(self, raw_module_path):
-        module_path = Path(raw_module_path)
+    def get_module_info(self, raw_jedi_module_path):
+        """
+        Given an absolute module path provided from jedi,
+        returns a tuple of (module_kind, rel_path) where:
+
+        module_kind: The category that the module belongs to
+        (module is declared inside the project, module is a std_lib module, etc.)
+
+        rel_path: The path of the module relative to the context
+        which it's defined in. e.x: if module_kind == 'PROJECT',
+        rel_path is the path of the module relative to the project's root.
+        """
+
+        module_path = Path(raw_jedi_module_path)
 
         if self.CLONED_PROJECT_PATH in module_path.parents:
             return (ModuleKind.PROJECT, module_path.relative_to(self.CLONED_PROJECT_PATH))
 
         if GlobalConfig.PYTHON_PATH in module_path.parents:
-            return (ModuleKind.STANDARD_LIBRARY, path.relative_to(sys_std_lib_path))
+            return (ModuleKind.STANDARD_LIBRARY, module_path.relative_to(GlobalConfig.PYTHON_PATH))
 
         venv_path = self.VENV_LOCATION / "lib"
         if venv_path in module_path.parents:
@@ -119,10 +131,11 @@ class CloneWorkspace:
             python_version = module_path.relative_to(venv_path).parts[0]
 
             venv_lib_path = venv_path / python_version
-            venv_ext_packages_path = venv_lib_path / "site-packages"
+            ext_dep_path = venv_lib_path / "site-packages"
 
-            if venv_ext_packages_path in module_path.parents:
-                return (ModuleKind.EXTERNAL_DEPENDENCY, module_path.relative_to(venv_ext_packages_path))
+            if ext_dep_path in module_path.parents:
+                return (ModuleKind.EXTERNAL_DEPENDENCY, module_path.relative_to(ext_dep_path))
+
             return (ModuleKind.STANDARD_LIBRARY, module_path.relative_to(venv_lib_path))
 
         return (ModuleKind.UNKNOWN, module_path)
