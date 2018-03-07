@@ -5,7 +5,6 @@ from .config import GlobalConfig
 from .fs import FileSystem
 from shutil import rmtree
 import delegator
-import json
 from functools import lru_cache
 from enum import Enum
 from pathlib import Path
