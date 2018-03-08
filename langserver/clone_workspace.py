@@ -122,8 +122,11 @@ class CloneWorkspace:
     def _install_pipenv(self):
         # pipenv creates the Pipfile automatically whenever it does anything -
         # only install if the project had one to begin with
-        if (self.PROJECT_HAS_PIPFILE and (self.CLONED_PROJECT_PATH / "Pipfile").exists()):
-            self.run_command("pipenv install -dev")
+        if self.PROJECT_HAS_PIPFILE:
+            if (self.CLONED_PROJECT_PATH / "Pipfile.lock").exists():
+                self.run_command("pipenv install --dev --ignore-pipfile")
+            elif (self.CLONED_PROJECT_PATH / "Pipfile").exists():
+                self.run_command("pipenv install --dev")
 
     def _install_pip(self):
         for requirements_file in self.CLONED_PROJECT_PATH.glob("*requirements.txt"):
