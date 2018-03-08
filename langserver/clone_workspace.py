@@ -128,7 +128,7 @@ class CloneWorkspace:
     def _install_pip(self):
         for requirements_file in self.CLONED_PROJECT_PATH.glob("*requirements.txt"):
             self.run_command(
-                "pip install -r {}".format(requirements_file.absolute()))
+                "pip install -r {}".format(str(requirements_file.absolute())))
 
     def _install_setup_py(self):
         if (self.CLONED_PROJECT_PATH / "setup.py").exists():
