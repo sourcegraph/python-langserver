@@ -41,12 +41,13 @@ class CloneWorkspace:
         log.debug("Setting Cloned Project path to %s",
                   self.CLONED_PROJECT_PATH)
 
+        self.PROJECT_HAS_PIPFILE = False
+
         # Clone the project from the provided filesystem into the local
         # cache
-        existing_pipfile = False
         for file_path in self.fs.walk(str(self.PROJECT_ROOT)):
             if file_path.endswith("Pipfile"):
-                existing_pipfile = True
+                self.PROJECT_HAS_PIPFILE = True
 
             cache_file_path = self.project_to_cache_path(file_path)
 
@@ -54,15 +55,7 @@ class CloneWorkspace:
             file_contents = self.fs.open(file_path)
             cache_file_path.write_text(file_contents)
 
-        # Install 3rd party deps
-
-        # pipenv creates the Pipfile automatically whenever it does anything -
-        # only install if the project had one to begin with
-        if existing_pipfile:
-            self._install_pipenv()
-
-        self._install_pip()
-        self._install_setup_py()
+        self._install_external_dependencies()
 
     def get_module_info(self, raw_jedi_module_path):
         """
@@ -113,8 +106,23 @@ class CloneWorkspace:
         # strip the leading '/' so that we can join it properly
         return self.CLONED_PROJECT_PATH / project_path.lstrip("/")
 
+    def _install_external_dependencies(self):
+        """
+        Installs the external dependencies for the project.
+
+        Known limitations:
+        - doesn't handle installation files that aren't in the root of the workspace
+        - no error handling if any of the installation steps will prompt the user for whatever
+        reason
+        """
+        self._install_setup_py()
+        self._install_pip()
+        self._install_pipenv()
+
     def _install_pipenv(self):
-        if (self.CLONED_PROJECT_PATH / "Pipfile").exists():
+        # pipenv creates the Pipfile automatically whenever it does anything -
+        # only install if the project had one to begin with
+        if (self.PROJECT_HAS_PIPFILE and (self.CLONED_PROJECT_PATH / "Pipfile").exists()):
             self.run_command("pipenv install -dev")
 
     def _install_pip(self):
