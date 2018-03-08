@@ -6,6 +6,7 @@ import delegator
 from functools import lru_cache
 from enum import Enum
 from pathlib import Path
+import os
 
 log = logging.getLogger(__name__)
 
@@ -183,8 +184,17 @@ class CloneWorkspace:
         '''
         kwargs["cwd"] = self.CLONED_PROJECT_PATH
 
-        # add pipenv prefix
         if not no_prefix:
+
+            # HACK: this is to get our spawned pipenv to keep creating
+            # venvs even if the language server itself is running inside one
+            # See:
+            # https://github.com/pypa/pipenv/blob/4e8deda9cbf2a658ab40ca31cc6e249c0b53d6f4/pipenv/environments.py#L58
+
+            env = kwargs.get("env", os.environ.copy())
+            env["VIRTUAL_ENV"] = ""
+            kwargs["env"] = env
+
             if type(command) is str:
                 command = "pipenv run {}".format(command)
             else:
