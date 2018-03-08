@@ -43,13 +43,26 @@ class CloneWorkspace:
 
         # Clone the project from the provided filesystem into the local
         # cache
+        existing_pipfile = False
         for file_path in self.fs.walk(str(self.PROJECT_ROOT)):
+            if file_path.endswith("Pipfile"):
+                existing_pipfile = True
 
             cache_file_path = self.project_to_cache_path(file_path)
 
             cache_file_path.parent.mkdir(parents=True, exist_ok=True)
             file_contents = self.fs.open(file_path)
             cache_file_path.write_text(file_contents)
+
+        # Install 3rd party deps
+
+        # pipenv creates the Pipfile automatically whenever it does anything -
+        # only install if the project had one to begin with
+        if existing_pipfile:
+            self._install_pipenv()
+
+        self._install_pip()
+        self._install_setup_py()
 
     def get_module_info(self, raw_jedi_module_path):
         """
@@ -99,6 +112,19 @@ class CloneWorkspace:
 
         # strip the leading '/' so that we can join it properly
         return self.CLONED_PROJECT_PATH / project_path.lstrip("/")
+
+    def _install_pipenv(self):
+        if (self.CLONED_PROJECT_PATH / "Pipfile").exists():
+            self.run_command("pipenv install -dev")
+
+    def _install_pip(self):
+        for requirements_file in self.CLONED_PROJECT_PATH.glob("*requirements.txt"):
+            self.run_command(
+                "pip install -r {}".format(requirements_file.absolute()))
+
+    def _install_setup_py(self):
+        if (self.CLONED_PROJECT_PATH / "setup.py").exists():
+            self.run_command("python setup.py install")
 
     @property
     @lru_cache()
