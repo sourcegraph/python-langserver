@@ -80,164 +80,126 @@ class TestFlaskWorkspace:
             'value': 'def jsonify(param *args, param **kwargs)'
         }
 
-    # # TODO(aaron): the actual definition results have duplicates for some
-    # # reason ... maybe the TestFileSystem?
-    # def test_local_definition(self, flask_workspace):
-    #     result = flask_workspace.definition("/flask/cli.py", 215, 15)
-    #     symbol = {
-    #         'location': {
-    #             'range': {
-    #                 'end': {
-    #                     'character': 17,
-    #                     'line': 34
-    #                 },
-    #                 'start': {
-    #                     'character': 4,
-    #                     'line': 34
-    #                 }
-    #             },
-    #             'uri': 'file:///flask/cli.py'
-    #         },
-    #         'symbol': {
-    #             'container': 'flask.cli',
-    #             'file': 'cli.py',
-    #             'kind': 'def',
-    #             'name': 'find_best_app',
-    #             'package': {
-    #                 'name': 'flask'
-    #             },
-    #             'position': {
-    #                 'character': 4,
-    #                 'line': 34
-    #             }
-    #         }
-    #     }
-    #     assert symbol in result
+    def test_local_definition(self, flask_workspace):
+        result = flask_workspace.definition("/flask/cli.py", 215, 15)
 
-    # def test_cross_module_definition(self, flask_workspace):
-    #     result = flask_workspace.definition("/flask/app.py", 220, 12)
-    #     symbol = {
-    #         'location': {
-    #             'range': {
-    #                 'end': {
-    #                     'character': 43,
-    #                     'line': 26
-    #                 },
-    #                 'start': {
-    #                     'character': 28,
-    #                     'line': 26
-    #                 }
-    #             },
-    #             'uri': 'file:///flask/app.py'
-    #         },
-    #         'symbol': {
-    #             'container': 'flask.app',
-    #             'file': 'app.py',
-    #             'kind': 'class',
-    #             'name': 'ConfigAttribute',
-    #             'package': {
-    #                 'name': 'flask'
-    #             },
-    #             'position': {
-    #                 'character': 28,
-    #                 'line': 26
-    #             }
-    #         }
-    #     }
-    #     assert symbol in result
+        assert len(result) == 1
+        definition = result[0]
 
-    # def test_cross_package_definition(self, flask_workspace):
-    #     result = flask_workspace.definition("/flask/__init__.py", 44, 15)
-    #     symbol = {
-    #         'symbol': {
-    #             'package': {
-    #                 'name': 'flask'
-    #             },
-    #             'name': 'jsonify',
-    #             'container': 'flask.json',
-    #             'kind': 'def',
-    #             'file': '__init__.py',
-    #             'position': {
-    #                 'line': 202,
-    #                 'character': 4
-    #             }
-    #         },
-    #         'location': {
-    #             'uri': 'file:///flask/json/__init__.py',
-    #             'range': {
-    #                 'start': {
-    #                     'line': 202,
-    #                     'character': 4
-    #                 },
-    #                 'end': {
-    #                     'line': 202,
-    #                     'character': 11
-    #                 }
-    #             }
-    #         }
-    #     }
-    #     assert symbol in result
+        assert "location" in definition
+        assert definition["location"] == {
+            'range': {
+                'end': {
+                    'character': 17,
+                    'line': 34
+                },
+                'start': {
+                    'character': 4,
+                    'line': 34
+                }
+            },
+            'uri': 'file:///flask/cli.py'
+        }
 
-    # def test_local_package_import_definition(self, flask_workspace):
-    #     result = flask_workspace.definition("/flask/__init__.py", 44, 10)
-    #     assert result == [
-    #         {
-    #             'symbol': {
-    #                 'package': {
-    #                     'name': 'flask'
-    #                 },
-    #                 'name': 'json',
-    #                 'container': 'flask.json',
-    #                 'kind': 'module',
-    #                 'file': '__init__.py',
-    #                 'position': {
-    #                     'line': 0,
-    #                     'character': 0
-    #                 }
-    #             },
-    #             'location': {
-    #                 'uri': 'file:///flask/json/__init__.py',
-    #                 'range': {
-    #                     'start': {
-    #                         'line': 0,
-    #                         'character': 0
-    #                     },
-    #                     'end': {
-    #                         'line': 0,
-    #                         'character': 4
-    #                     }
-    #                 }
-    #             }
-    #         },
-    #         {
-    #             'symbol': {
-    #                 'package': {
-    #                     'name': 'flask'
-    #                 },
-    #                 'name': 'json',
-    #                 'container': 'flask',
-    #                 'kind': 'module',
-    #                 'file': '__init__.py',
-    #                 'position': {
-    #                     'line': 40,
-    #                     'character': 14
-    #                 }
-    #             },
-    #             'location': {
-    #                 'uri': 'file:///flask/__init__.py',
-    #                 'range': {
-    #                     'start': {
-    #                         'line': 40,
-    #                         'character': 14
-    #                     },
-    #                     'end': {
-    #                         'line': 40,
-    #                         'character': 18
-    #                     }
-    #                 }
-    #             }
-    #         },
-    #     ]
+    def test_cross_module_definition(self, flask_workspace):
+        result = flask_workspace.definition("/flask/app.py", 220, 12)
+
+        assert len(result) == 2
+        assert all(["location" in d for d in result])
+
+        result_locations = [d["location"] for d in result]
+
+        definition_location = {
+            'uri': 'file:///flask/config.py',
+            'range': {
+                'start': {
+                    'line': 20,
+                    'character': 6
+                },
+                'end': {
+                    'line': 20,
+                    'character': 21
+                }
+            }
+        }
+
+        # from the import statement at the top of the file
+        assignment_location = {
+            'uri': 'file:///flask/app.py',
+            'range': {
+                'end': {
+                    'character': 43,
+                    'line': 26
+                },
+                'start': {
+                    'character': 28,
+                    'line': 26
+                }
+            },
+        }
+
+        assert definition_location in result_locations
+        assert assignment_location in result_locations
+
+    def test_cross_package_definition(self, flask_workspace):
+        result = flask_workspace.definition("/flask/__init__.py", 44, 15)
+
+        assert len(result) == 1
+        definition = result[0]
+
+        assert definition["location"] == {
+            'uri': 'file:///flask/json/__init__.py',
+            'range': {
+                'start': {
+                    'line': 202,
+                    'character': 4
+                },
+                'end': {
+                    'line': 202,
+                    'character': 11
+                }
+            }
+        }
+
+    def test_local_package_import_definition(self, flask_workspace):
+        result = flask_workspace.definition("/flask/__init__.py", 44, 10)
+
+        assert len(result) == 2
+        assert all(["location" in d for d in result])
+
+        result_locations = [d["location"] for d in result]
+
+        definition_location = {
+            'uri': 'file:///flask/json/__init__.py',
+            'range': {
+                'start': {
+                    'line': 0,
+                    'character': 0
+                },
+                'end': {
+                    'line': 0,
+                    'character': 4
+                }
+            }
+        }
+
+        # from the import statement directly above it
+        assignment_location = {
+            'uri': 'file:///flask/__init__.py',
+            'range': {
+                'start': {
+                    'line': 40,
+                    'character': 14
+                },
+                'end': {
+                    'line': 40,
+                    'character': 18
+                }
+            }
+        }
+
+        assert definition_location in result_locations
+        assert assignment_location in result_locations
 
     def test_cross_repo_hover(self, flask_workspace):
         result = flask_workspace.hover("/flask/app.py", 295, 20)
