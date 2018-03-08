@@ -1,6 +1,6 @@
 import logging
 from .config import GlobalConfig
-from .fs import FileSystem
+from .fs import FileSystem, TestFileSystem
 from shutil import rmtree
 import delegator
 from functools import lru_cache
@@ -50,10 +50,17 @@ class CloneWorkspace:
                 self.PROJECT_HAS_PIPFILE = True
 
             cache_file_path = self.project_to_cache_path(file_path)
-
-            cache_file_path.parent.mkdir(parents=True, exist_ok=True)
-            file_contents = self.fs.open(file_path)
-            cache_file_path.write_text(file_contents)
+            try:
+                file_contents = self.fs.open(file_path)
+                cache_file_path.parent.mkdir(parents=True, exist_ok=True)
+                cache_file_path.write_text(file_contents)
+            except UnicodeDecodeError as e:
+                if isinstance(self.fs, TestFileSystem):
+                    # assume that it's trying to write some non-text file, which
+                    # should only happen when running tests
+                    continue
+                else:
+                    raise e
 
         self._install_external_dependencies()
 
