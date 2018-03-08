@@ -47,7 +47,7 @@ class CloneWorkspace:
         # Clone the project from the provided filesystem into the local
         # cache
         for file_path in self.fs.walk(str(self.PROJECT_ROOT)):
-            if file_path.endswith("Pipfile"):
+            if file_path == "/Pipfile":
                 self.PROJECT_HAS_PIPFILE = True
 
             cache_file_path = self.project_to_cache_path(file_path)
