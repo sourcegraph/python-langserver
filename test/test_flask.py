@@ -245,7 +245,7 @@ class TestFlaskWorkspace:
             'contents': [
                 {
                     'language': 'python',
-                    'value': 'class ImmutableDict(param type(self))'
+                    'value': 'class ImmutableDict(param args, param kwargs)'
                 },
                 'An immutable :class:`dict`.\n\n.. versionadded:: 0.5'
             ]
@@ -345,7 +345,7 @@ class TestFlaskWorkspace:
             'contents': [
                 {
                     'language': 'python',
-                    'value': 'class timedelta(param type(self))'},
+                    'value': 'class timedelta(param args, param kwargs)'},
                 'Represent the difference between two datetime objects.\n\n'
                 'Supported operators:\n\n'
                 '- add, subtract timedelta\n'
