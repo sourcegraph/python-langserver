@@ -9,4 +9,4 @@ lint:
 
 test:
 	# pipenv run pytest test_langserver.py
-	cd ./test && pipenv run pytest test_*.py -vv
+	cd ./test && pipenv run pytest test_*.py
