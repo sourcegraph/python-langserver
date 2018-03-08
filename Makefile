@@ -9,6 +9,7 @@ lint:
 
 test:
 	# pipenv run pytest test_langserver.py
+	cd ./test && pipenv run pytest test_tensorflow_models.py -vv
 	cd ./test && pipenv run pytest test_modpkgsamename.py -vv
 	cd ./test && pipenv run pytest test_dep_versioning.py -vv
 	cd ./test && pipenv run pytest test_conflictingdeps.py -vv
