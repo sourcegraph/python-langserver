@@ -213,7 +213,7 @@ class TestFileSystem(FileSystem):
                 dirs.append(os.path.relpath(e, self.root))
             else:
                 file_type = mimetypes.guess_type(e)[0]
-                if file_type and file_type.startswith("text/"):
+                if file_type is None or file_type.startswith("text/"):
                     files.append(os.path.relpath(e, self.root))
         yield from files
         for d in dirs:
