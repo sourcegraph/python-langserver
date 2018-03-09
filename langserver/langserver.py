@@ -11,11 +11,10 @@ from .config import GlobalConfig
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-# from .workspace import Workspace
+from .workspace import Workspace, ModuleKind
 from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
-from .clone_workspace import CloneWorkspace, ModuleKind
 
 log = logging.getLogger(__name__)
 
@@ -178,9 +177,7 @@ class LangServer:
         # Sourcegraph also passes in a rootUri which has commit information
         originalRootUri = params.get("originalRootUri") or params.get(
             "originalRootPath") or ""
-        # self.workspace = Workspace(
-        #     self.fs, self.root_path, originalRootUri, pip_args)
-        self.workspace = CloneWorkspace(
+        self.workspace = Workspace(
             self.fs, self.root_path, originalRootUri)
 
         return {
@@ -202,8 +199,8 @@ class LangServer:
 
         self.fs = fs
         self.streaming = False
-        self.workspace = CloneWorkspace(self.fs, self.root_path,
-                                        params["originalRootPath"])
+        self.workspace = Workspace(self.fs, self.root_path,
+                                   params["originalRootPath"])
 
         return {
             "capabilities": {
