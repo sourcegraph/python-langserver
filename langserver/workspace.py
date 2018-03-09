@@ -42,13 +42,9 @@ class Workspace:
         log.debug("Setting Cloned Project path to %s",
                   self.CLONED_PROJECT_PATH)
 
-        self.PROJECT_HAS_PIPFILE = False
-
         # Clone the project from the provided filesystem into the local
         # cache
         for file_path in self.fs.walk(str(self.PROJECT_ROOT)):
-            if file_path == "/Pipfile":
-                self.PROJECT_HAS_PIPFILE = True
 
             cache_file_path = self.project_to_cache_path(file_path)
             try:
@@ -63,7 +59,82 @@ class Workspace:
                 else:
                     raise e
 
+        self.project = Project(self.CLONED_PROJECT_PATH,
+                               self.CLONED_PROJECT_PATH)
+
+    def find_project_for_path(self, path):
+        return self.project.find_project_for_path(path)
+
+    def project_to_cache_path(self, project_path):
+        """
+        Translates a path from the root of the project to the equivalent path in
+        the local cache.
+
+        e.x.: '/a/b.py' -> '/python-cloned-projects-cache/project_name/a/b.py'
+        """
+
+        # strip the leading '/' so that we can join it properly
+        return self.CLONED_PROJECT_PATH / project_path.lstrip("/")
+
+    def cleanup(self):
+        self.project.cleanup()
+
+
+class Project:
+    def __init__(self, workspace_root_dir, project_root_dir):
+        self.WORKSPACE_ROOT_DIR = workspace_root_dir
+        self.PROJECT_ROOT_DIR = project_root_dir
+        self.sub_projects = self._find_subprojects(project_root_dir)
         self._install_external_dependencies()
+
+    def _find_subprojects(self, current_dir):
+        '''
+        Returns a map containing the top-level subprojects contained inside
+        this project, keyed by the absolute path to the subproject.
+        '''
+        sub_projects = {}
+
+        top_level_folders = (
+            child for child in current_dir.iterdir() if child.is_dir())
+
+        for folder in top_level_folders:
+
+            def gen_len(generator):
+                return sum(1 for _ in generator)
+
+            # do any subfolders contain installation files?
+            if any(gen_len(folder.glob(pattern)) for pattern in INSTALLATION_FILE_PATTERNS):
+                sub_projects[folder] = Project(self.WORKSPACE_ROOT_DIR, folder)
+            else:
+                sub_projects.update(self._find_subprojects(folder))
+
+        return sub_projects
+
+    def find_project_for_path(self, path):
+        '''
+        Returns the deepest project instance that contains this path.
+
+        '''
+        if path.is_file():
+            folder = path.parent
+        else:
+            folder = path
+
+        if folder == self.PROJECT_ROOT_DIR:
+            return self
+
+        # If the project_dir isn't an ancestor of the folder,
+        # there is no way it or any of its subprojects
+        # could contain this path
+        if self.PROJECT_ROOT_DIR not in folder.parents:
+            return None
+
+        for sub_project in self.sub_projects.values():
+            deepest_project = sub_project.find_project_for_path(path)
+            if deepest_project is not None:
+                return deepest_project
+
+        return self
 
     def get_module_info(self, raw_jedi_module_path):
         """
@@ -80,8 +151,8 @@ class Workspace:
 
         module_path = Path(raw_jedi_module_path)
 
-        if self.CLONED_PROJECT_PATH in module_path.parents:
-            return (ModuleKind.PROJECT, module_path.relative_to(self.CLONED_PROJECT_PATH))
+        if self.PROJECT_ROOT_DIR in module_path.parents:
+            return (ModuleKind.PROJECT, module_path.relative_to(self.WORKSPACE_ROOT_DIR))
 
         if GlobalConfig.PYTHON_PATH in module_path.parents:
             return (ModuleKind.STANDARD_LIBRARY, module_path.relative_to(GlobalConfig.PYTHON_PATH))
@@ -103,17 +174,6 @@ class Workspace:
 
         return (ModuleKind.UNKNOWN, module_path)
 
-    def project_to_cache_path(self, project_path):
-        """
-        Translates a path from the root of the project to the equivalent path in
-        the local cache.
-
-        e.x.: '/a/b.py' -> '/python-cloned-projects-cache/project_name/a/b.py'
-        """
-
-        # strip the leading '/' so that we can join it properly
-        return self.CLONED_PROJECT_PATH / project_path.lstrip("/")
-
     def _install_external_dependencies(self):
         """
         Installs the external dependencies for the project.
@@ -128,21 +188,18 @@ class Workspace:
         self._install_pipenv()
 
     def _install_pipenv(self):
-        # pipenv creates the Pipfile automatically whenever it does anything -
-        # only install if the project had one to begin with
-        if self.PROJECT_HAS_PIPFILE:
-            if (self.CLONED_PROJECT_PATH / "Pipfile.lock").exists():
-                self.run_command("pipenv install --dev --ignore-pipfile")
-            elif (self.CLONED_PROJECT_PATH / "Pipfile").exists():
-                self.run_command("pipenv install --dev")
+        if (self.PROJECT_ROOT_DIR / "Pipfile.lock").exists():
+            self.run_command("pipenv install --dev --ignore-pipfile")
+        elif (self.PROJECT_ROOT_DIR / "Pipfile").exists():
+            self.run_command("pipenv install --dev")
 
     def _install_pip(self):
-        for requirements_file in self.CLONED_PROJECT_PATH.glob("*requirements.txt"):
+        for requirements_file in self.PROJECT_ROOT_DIR.glob(REQUIREMENTS_GLOB_PATTERN):
             self.run_command(
                 "pip install -r {}".format(str(requirements_file.absolute())))
 
     def _install_setup_py(self):
-        if (self.CLONED_PROJECT_PATH / "setup.py").exists():
+        if (self.PROJECT_ROOT_DIR / "setup.py").exists():
             self.run_command("python setup.py install")
 
     @property
@@ -156,11 +213,14 @@ class Workspace:
         return Path(venv_path)
 
     def cleanup(self):
+        for sub_project in self.sub_projects.values():
+            sub_project.cleanup()
+
         log.info("Removing project's virtual environment %s", self.VENV_PATH)
         self.remove_venv()
 
-        log.info("Removing cloned project cache %s", self.CLONED_PROJECT_PATH)
-        rmtree(self.CLONED_PROJECT_PATH, ignore_errors=True)
+        log.info("Removing cloned project cache %s", self.PROJECT_ROOT_DIR)
+        rmtree(self.PROJECT_ROOT_DIR, ignore_errors=True)
 
     def ensure_venv_created(self):
         '''
@@ -182,7 +242,7 @@ class Workspace:
             - the projects virtual environment is loaded into
             the command's environment
         '''
-        kwargs["cwd"] = self.CLONED_PROJECT_PATH
+        kwargs["cwd"] = self.PROJECT_ROOT_DIR
 
         if not no_prefix:
 
@@ -201,6 +261,11 @@ class Workspace:
                 command = ["pipenv", "run"].append(command)
 
         return delegator.run(command, **kwargs)
+
+
+REQUIREMENTS_GLOB_PATTERN = "*requirements.txt"
+
+INSTALLATION_FILE_PATTERNS = ["Pipfile", REQUIREMENTS_GLOB_PATTERN, "setup.py"]
 
 
 class ModuleKind(Enum):

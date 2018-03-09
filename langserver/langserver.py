@@ -354,12 +354,15 @@ class LangServer:
         if not defs:
             return results
 
+        project = self.workspace.find_project_for_path(
+            self.workspace.project_to_cache_path(path))
+
         for d in defs:
             # TODO: handle case where a def doesn't have a module_path
             if not d.module_path:
                 continue
 
-            module_kind, rel_module_path = self.workspace.get_module_info(
+            module_kind, rel_module_path = project.get_module_info(
                 d.module_path)
 
             if module_kind != ModuleKind.PROJECT:

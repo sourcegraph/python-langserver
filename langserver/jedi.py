@@ -33,10 +33,11 @@ class RemoteJedi:
 
         if self.workspace is not None:
             path = self.workspace.project_to_cache_path(path)
+            project = self.workspace.find_project_for_path(path)
 
             environment = None
-            for env in jedi.find_virtualenvs([self.workspace.VENV_PATH], safe=False):
-                if env._base_path == self.workspace.VENV_PATH:
+            for env in jedi.find_virtualenvs([project.VENV_PATH], safe=False):
+                if env._base_path == project.VENV_PATH:
                     environment = env
                     break
 
