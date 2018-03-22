@@ -186,6 +186,7 @@ class LangServer:
                 "documentSymbolProvider": True,
                 "workspaceSymbolProvider": True,
                 "streaming": True,
+                "xdefinitionProvider": True,
             }
         }
 
