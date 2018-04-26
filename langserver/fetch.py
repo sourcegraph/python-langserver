@@ -5,7 +5,6 @@ import shutil
 import logging
 
 import pip
-import pip.status_codes
 
 from typing import List
 
@@ -31,7 +30,7 @@ def fetch_dependency(module_name: str, specifier: str, install_path: str, pip_ar
             pip_args +
             [module_name + specifier]
         )
-        if result != pip.status_codes.SUCCESS:
+        if result != 0:
             log.error("Unable to fetch package %s", module_name)
             return
         for thing in os.listdir(download_folder):
