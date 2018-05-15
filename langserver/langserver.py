@@ -220,7 +220,7 @@ class LangServer:
         parent_span = request.get("span", None)
         source = self.fs.open(path, parent_span)
         if len(source.split("\n")[pos["line"]]) < pos["character"]:
-            return {}
+            return {"contents": []}
         script = self.new_script(
             path=path,
             source=source,
@@ -320,10 +320,7 @@ class LangServer:
                 elif definition.type == "statement":
                     results.append("variable `" + definition.name + "`")
 
-        if results:
-            return {"contents": results}
-        else:
-            return {}
+        return {"contents": results}
 
     def serve_definition(self, request):
         return list(
