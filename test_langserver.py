@@ -84,7 +84,7 @@ def test_hover_on_def():
 
 def test_hover_on_string_literal():
     h = hover('/c.py', 5, 21)
-    assert h == {}  # expect no hover on a string literal
+    assert h == {"contents": []}  # expect no hover on a string literal
 
 
 def test_hover_on_string_variable():
