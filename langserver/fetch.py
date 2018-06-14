@@ -4,8 +4,6 @@ import os
 import shutil
 import logging
 
-import pip
-
 from typing import List
 
 log = logging.getLogger(__name__)
@@ -25,12 +23,12 @@ def fetch_dependency(module_name: str, specifier: str, install_path: str, pip_ar
                  module_name, download_folder, exc_info=True)
         # TODO: check the result status
 
-        result = pip.main(
-            ["download", "--no-deps", "-d", download_folder] +
+        result = subprocess.run(
+            ["pip", "download", "--no-deps", "-d", download_folder] +
             pip_args +
             [module_name + specifier]
         )
-        if result != 0:
+        if result.returncode != 0:
             log.error("Unable to fetch package %s", module_name)
             return
         for thing in os.listdir(download_folder):
