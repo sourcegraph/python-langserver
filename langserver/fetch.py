@@ -4,8 +4,6 @@ import os
 import shutil
 import logging
 
-import pip
-
 from typing import List
 
 log = logging.getLogger(__name__)
