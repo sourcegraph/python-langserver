@@ -2,7 +2,7 @@
 
 ---
 
-> NOTE: This project is no longer being maintained or in active development. See the [Sourcegraph fork of Microsoft's Python language server](https://github.com/sourcegraph/sourcegraph-python).
+> NOTE: This project is no longer being maintained or in active development. See the [Sourcegraph fork of Microsoft's Python language server](https://github.com/sourcegraph/python-language-server).
 
 ---
 
