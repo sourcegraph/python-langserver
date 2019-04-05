@@ -4,7 +4,7 @@ from abc import ABC, abstractmethod
 
 import opentracing
 from typing import List
-
+import mimetypes
 from .jsonrpc import JSONRPC2Connection
 
 
@@ -212,7 +212,9 @@ class TestFileSystem(FileSystem):
             if os.path.isdir(e):
                 dirs.append(os.path.relpath(e, self.root))
             else:
-                files.append(os.path.relpath(e, self.root))
+                file_type = mimetypes.guess_type(e)[0]
+                if file_type is None or file_type.startswith("text/"):
+                    files.append(os.path.relpath(e, self.root))
         yield from files
         for d in dirs:
             yield from self._walk(os.path.join(self.root, d))

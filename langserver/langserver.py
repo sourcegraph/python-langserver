@@ -11,7 +11,7 @@ from .config import GlobalConfig
 from .fs import LocalFileSystem, RemoteFileSystem
 from .jedi import RemoteJedi
 from .jsonrpc import JSONRPC2Connection, ReadWriter, TCPReadWriter
-from .workspace import Workspace
+from .workspace import Workspace, ModuleKind
 from .symbols import extract_symbols, workspace_symbols
 from .definitions import targeted_symbol
 from .references import get_references
@@ -163,20 +163,22 @@ class LangServer:
         else:
             self.fs = LocalFileSystem()
 
-        pip_args = []
-        if "initializationOptions" in params:
-            initOps = params["initializationOptions"]
-            if isinstance(initOps, dict) and "pipArgs" in initOps:
-                p = initOps["pipArgs"]
-                if isinstance(p, list):
-                    pip_args = p
-                else:
-                    log.error("pipArgs (%s) found, but was not a list, so ignoring", str(p))
+        # pip_args = []
+        # if "initializationOptions" in params:
+        #     initOps = params["initializationOptions"]
+        #     if isinstance(initOps, dict) and "pipArgs" in initOps:
+        #         p = initOps["pipArgs"]
+        #         if isinstance(p, list):
+        #             pip_args = p
+        #         else:
+        #             log.error(
+        #                 "pipArgs (%s) found, but was not a list, so ignoring", str(p))
 
         # Sourcegraph also passes in a rootUri which has commit information
         originalRootUri = params.get("originalRootUri") or params.get(
             "originalRootPath") or ""
-        self.workspace = Workspace(self.fs, self.root_path, originalRootUri, pip_args)
+        self.workspace = Workspace(
+            self.fs, self.root_path, originalRootUri)
 
         return {
             "capabilities": {
@@ -351,85 +353,43 @@ class LangServer:
         if not defs:
             return results
 
-        for d in defs:
-            defining_module_path = d.module_path
-            defining_module = self.workspace.get_module_by_path(
-                defining_module_path)
+        project = self.workspace.find_project_for_path(
+            self.workspace.project_to_cache_path(path))
 
-            if not defining_module and (not d.is_definition() or
-                                        d.line is None or d.column is None):
+        for d in defs:
+            # TODO: handle case where a def doesn't have a module_path
+            if not d.module_path:
                 continue
 
-            symbol_locator = {"symbol": None, "location": None}
+            module_kind, rel_module_path = project.get_module_info(
+                d.module_path)
 
-            if defining_module and not defining_module.is_stdlib:
-                # the module path doesn't map onto the repository structure
-                # because we're not fully installing
-                # dependency packages, so don't include it in the symbol
-                # descriptor
-                filename = os.path.basename(defining_module_path)
-                symbol_name = ""
-                symbol_kind = ""
-                if d.description:
-                    symbol_name, symbol_kind = LangServer.name_and_kind(
-                        d.description)
-                symbol_locator["symbol"] = {
-                    "package": {
-                        "name": defining_module.qualified_name.split(".")[0],
+            if module_kind != ModuleKind.PROJECT:
+                # only handle internal defs for now
+                continue
+
+            if (not d.is_definition() or
+                    d.line is None or d.column is None):
+                continue
+
+            location = {
+                # put a "/" shim at the front to make the path
+                # seem like an absolute one inside the project
+                "uri": "file://" + str("/" / rel_module_path),
+
+                "range": {
+                    "start": {
+                        "line": d.line - 1,
+                        "character": d.column,
                     },
-                    "name": symbol_name,
-                    "container": defining_module.qualified_name,
-                    "kind": symbol_kind,
-                    "file": filename
-                }
-
-            elif defining_module and defining_module.is_stdlib:
-                rel_path = os.path.relpath(defining_module_path,
-                                           self.workspace.PYTHON_PATH)
-                filename = os.path.basename(defining_module_path)
-                symbol_name = ""
-                symbol_kind = ""
-                if d.description:
-                    symbol_name, symbol_kind = LangServer.name_and_kind(
-                        d.description)
-                symbol_locator["symbol"] = {
-                    "package": {
-                        "name": "cpython",
+                    "end": {
+                        "line": d.line - 1,
+                        "character": d.column + len(d.name),
                     },
-                    "name": symbol_name,
-                    "container": defining_module.qualified_name,
-                    "kind": symbol_kind,
-                    "path": os.path.join(GlobalConfig.STDLIB_SRC_PATH,
-                                         rel_path),
-                    "file": filename
-                }
+                },
+            }
 
-            if (d.is_definition() and
-                    d.line is not None and d.column is not None):
-                location = {
-                    # TODO(renfred) determine why d.module_path is empty.
-                    "uri": "file://" + (d.module_path or path),
-                    "range": {
-                        "start": {
-                            "line": d.line - 1,
-                            "character": d.column,
-                        },
-                        "end": {
-                            "line": d.line - 1,
-                            "character": d.column + len(d.name),
-                        },
-                    },
-                }
-                # add a position hint in case this eventually gets passed to an
-                # operation that could use it
-                if symbol_locator["symbol"]:
-                    symbol_locator["symbol"]["position"] = location["range"][
-                        "start"]
-
-                # set the full location if the definition is in this workspace
-                if not defining_module or not defining_module.is_external:
-                    symbol_locator["location"] = location
-
+            symbol_locator = {"symbol": None, "location": location}
             results.append(symbol_locator)
 
         unique_results = []
@@ -520,13 +480,14 @@ class LangServer:
         self.conn.send_notification(
             "$/partialResult", partial_initializer) if self.streaming else None
         json_patch = []
-        package_cache_path = os.path.abspath(self.workspace.PACKAGES_PATH)
+        # package_cache_path = os.path.abspath(self.workspace.PACKAGES_PATH)
         for u in usages:
+            u.module_path = self.workspace.from_cache_path(u.module_path)
             if u.is_definition():
                 continue
             # filter out any results from files that are cached on the local fs
-            if u.module_path.startswith(package_cache_path):
-                continue
+            # if u.module_path.startswith(package_cache_path):
+            #     continue
             if u.module_path.startswith(self.workspace.PYTHON_PATH):
                 continue
             location = {
@@ -657,7 +618,7 @@ class LangServer:
         return [s.json_object() for s in extract_symbols(source, path)]
 
     def serve_x_packages(self, request):
-        return self.workspace.get_package_information(request["span"])
+        return self.workspace.get_package_information()
 
     def serve_x_dependencies(self, request):
         return self.workspace.get_dependencies(request["span"])
@@ -699,7 +660,8 @@ def main():
     parser.add_argument(
         "--addr", default=4389, help="server listen (tcp)", type=int)
     parser.add_argument("--debug", action="store_true")
-    parser.add_argument("--lightstep_token", default=os.environ.get("LIGHTSTEP_ACCESS_TOKEN"))
+    parser.add_argument("--lightstep_token",
+                        default=os.environ.get("LIGHTSTEP_ACCESS_TOKEN"))
     parser.add_argument("--python_path")
 
     args = parser.parse_args()

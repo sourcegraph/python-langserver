@@ -8,5 +8,5 @@ lint:
 	pipenv run flake8
 
 test:
-	pipenv run pytest test_langserver.py
+	# pipenv run pytest test_langserver.py
 	cd ./test && pipenv run pytest test_*.py

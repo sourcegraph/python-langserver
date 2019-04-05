@@ -6,3 +6,4 @@ __pycache__/
 src
 .cache/
 python-langserver-cache/
+python-cloned-projects-cache/
